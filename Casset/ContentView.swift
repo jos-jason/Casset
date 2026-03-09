@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @EnvironmentObject var libraryManager: LibraryManager
     @EnvironmentObject var playerManager: AudioPlayerManager
-    @EnvironmentObject var playerScreenTracker: PlayerScreenTracker   // NEW
+    @EnvironmentObject var playerScreenTracker: PlayerScreenTracker
 
     @State private var isImporting        = false
     @State private var bookToGroup: Book? = nil
@@ -12,80 +12,93 @@ struct ContentView: View {
     @State private var newGroupName       = ""
     @State private var isCreatingNewGroup = false
 
+    // For navigating from mini player back into PlayerView
+    @State private var miniPlayerTarget: Book? = nil
+    @State private var isPushingFromMini: Bool = false
+
     var body: some View {
         TabView {
 
             // MARK: Library tab
             ZStack(alignment: .bottom) {
                 NavigationStack {
-                    Group {
-                        if libraryManager.books.isEmpty {
-                            VStack(spacing: 16) {
-                                Image(systemName: "books.vertical")
-                                    .font(.system(size: 60))
-                                    .foregroundStyle(.secondary)
-                                Text("Your library is empty")
-                                    .font(.title3)
-                                    .foregroundStyle(.secondary)
-                                Button("Import Audio File") { isImporting = true }
-                                    .buttonStyle(.borderedProminent)
-                            }
-                        } else {
-                            List {
-                                ForEach(libraryManager.books) { book in
-                                    NavigationLink(
-                                        destination: PlayerView(book: book)
-                                            .environmentObject(libraryManager)
-                                            .environmentObject(playerManager)
-                                            .environmentObject(playerScreenTracker)
-                                    ) {
-                                        HStack(spacing: 14) {
-                                            Group {
-                                                if let artURL = book.artworkURL(),
-                                                   let uiImage = UIImage(contentsOfFile: artURL.path) {
-                                                    Image(uiImage: uiImage)
-                                                        .resizable()
-                                                        .scaledToFill()
-                                                } else {
-                                                    Image(systemName: "book.closed.fill")
-                                                        .font(.system(size: 28))
-                                                        .foregroundStyle(.secondary)
-                                                }
-                                            }
-                                            .frame(width: 56, height: 56)
-                                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                                            .background(
-                                                RoundedRectangle(cornerRadius: 8)
-                                                    .fill(Color.secondary.opacity(0.15))
-                                            )
+                    VStack {
+                        // Hidden link used when tapping mini player cover
+                        NavigationLink(
+                            destination: miniPlayerDestination(),
+                            isActive: $isPushingFromMini
+                        ) { EmptyView() }
+                        .hidden()
 
-                                            VStack(alignment: .leading, spacing: 4) {
-                                                Text(book.title)
-                                                    .font(.headline)
-                                                if book.lastPosition > 0 {
-                                                    Text("Last played: \(formatTime(book.lastPosition))")
-                                                        .font(.caption)
-                                                        .foregroundStyle(.secondary)
-                                                } else {
-                                                    Text("Not started")
-                                                        .font(.caption)
-                                                        .foregroundStyle(.secondary)
-                                                }
-                                            }
-                                            .padding(.vertical, 4)
-                                        }
-                                    }
-                                    .swipeActions(edge: .leading) {
-                                        Button {
-                                            bookToGroup = book
-                                            isChoosingGroup = true
-                                        } label: {
-                                            Label("Add to Collection", systemImage: "folder.badge.plus")
-                                        }
-                                        .tint(.yellow)
-                                    }
+                        Group {
+                            if libraryManager.books.isEmpty {
+                                VStack(spacing: 16) {
+                                    Image(systemName: "books.vertical")
+                                        .font(.system(size: 60))
+                                        .foregroundStyle(.secondary)
+                                    Text("Your library is empty")
+                                        .font(.title3)
+                                        .foregroundStyle(.secondary)
+                                    Button("Import Audio File") { isImporting = true }
+                                        .buttonStyle(.borderedProminent)
                                 }
-                                .onDelete(perform: libraryManager.removeBook)
+                            } else {
+                                List {
+                                    ForEach(libraryManager.books) { book in
+                                        NavigationLink(
+                                            destination: PlayerView(book: book)
+                                                .environmentObject(libraryManager)
+                                                .environmentObject(playerManager)
+                                                .environmentObject(playerScreenTracker)
+                                        ) {
+                                            HStack(spacing: 14) {
+                                                Group {
+                                                    if let artURL = book.artworkURL(),
+                                                       let uiImage = UIImage(contentsOfFile: artURL.path) {
+                                                        Image(uiImage: uiImage)
+                                                            .resizable()
+                                                            .scaledToFill()
+                                                    } else {
+                                                        Image(systemName: "book.closed.fill")
+                                                            .font(.system(size: 28))
+                                                            .foregroundStyle(.secondary)
+                                                    }
+                                                }
+                                                .frame(width: 56, height: 56)
+                                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                                .background(
+                                                    RoundedRectangle(cornerRadius: 8)
+                                                        .fill(Color.secondary.opacity(0.15))
+                                                )
+
+                                                VStack(alignment: .leading, spacing: 4) {
+                                                    Text(book.title)
+                                                        .font(.headline)
+                                                    if book.lastPosition > 0 {
+                                                        Text("Last played: \(formatTime(book.lastPosition))")
+                                                            .font(.caption)
+                                                            .foregroundStyle(.secondary)
+                                                    } else {
+                                                        Text("Not started")
+                                                            .font(.caption)
+                                                            .foregroundStyle(.secondary)
+                                                    }
+                                                }
+                                                .padding(.vertical, 4)
+                                            }
+                                        }
+                                        .swipeActions(edge: .leading) {
+                                            Button {
+                                                bookToGroup = book
+                                                isChoosingGroup = true
+                                            } label: {
+                                                Label("Add to Collection", systemImage: "folder.badge.plus")
+                                            }
+                                            .tint(.yellow)
+                                        }
+                                    }
+                                    .onDelete(perform: libraryManager.removeBook)
+                                }
                             }
                         }
                     }
@@ -143,14 +156,18 @@ struct ContentView: View {
                     }
                 }
 
+                // Mini player overlay (hidden when full PlayerView is visible)
                 if let currentID = playerManager.currentBookID,
                    let current = libraryManager.books.first(where: { $0.id == currentID }),
                    playerManager.player != nil,
-                   playerScreenTracker.isShowingPlayer == false {   // HIDE when player on screen
-                    MiniPlayerBar(book: current)
-                        .environmentObject(playerManager)
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 8)
+                   playerScreenTracker.isShowingPlayer == false {
+                    MiniPlayerBar(book: current) {
+                        miniPlayerTarget = current
+                        isPushingFromMini = true
+                    }
+                    .environmentObject(playerManager)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 8)
                 }
             }
             .tabItem {
@@ -166,15 +183,30 @@ struct ContentView: View {
                    let current = libraryManager.books.first(where: { $0.id == currentID }),
                    playerManager.player != nil,
                    playerScreenTracker.isShowingPlayer == false {
-                    MiniPlayerBar(book: current)
-                        .environmentObject(playerManager)
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 8)
+                    MiniPlayerBar(book: current) {
+                        miniPlayerTarget = current
+                        isPushingFromMini = true
+                    }
+                    .environmentObject(playerManager)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 8)
                 }
             }
             .tabItem {
                 Label("Collections", systemImage: "folder")
             }
+        }
+    }
+
+    @ViewBuilder
+    private func miniPlayerDestination() -> some View {
+        if let target = miniPlayerTarget {
+            PlayerView(book: target)
+                .environmentObject(libraryManager)
+                .environmentObject(playerManager)
+                .environmentObject(playerScreenTracker)
+        } else {
+            EmptyView()
         }
     }
 

@@ -2,6 +2,8 @@ import SwiftUI
 
 struct MiniPlayerBar: View {
     var book: Book
+    var onTap: () -> Void = {}          // tap on artwork opens PlayerView
+
     @EnvironmentObject var playerManager: AudioPlayerManager
 
     var coverImage: UIImage? {
@@ -12,20 +14,23 @@ struct MiniPlayerBar: View {
     var body: some View {
         HStack(spacing: 12) {
 
-            // Artwork thumbnail
-            Group {
-                if let img = coverImage {
-                    Image(uiImage: img)
-                        .resizable()
-                        .scaledToFill()
-                } else {
-                    Image(systemName: "book.closed.fill")
-                        .font(.system(size: 18))
-                        .foregroundStyle(.secondary)
+            // Artwork thumbnail as tap target
+            Button(action: onTap) {
+                Group {
+                    if let img = coverImage {
+                        Image(uiImage: img)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        Image(systemName: "book.closed.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(.secondary)
+                    }
                 }
+                .frame(width: 40, height: 40)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
             }
-            .frame(width: 40, height: 40)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .buttonStyle(.plain)
 
             // Title + subtle progress bar
             VStack(alignment: .leading, spacing: 4) {
@@ -45,7 +50,7 @@ struct MiniPlayerBar: View {
 
             Spacer()
 
-            // Transport controls (match PlayerView style)
+            // Transport controls (match main player style)
             HStack(spacing: 24) {
                 Button {
                     playerManager.skipBackward()
@@ -85,11 +90,11 @@ struct MiniPlayerBar: View {
 
     private var progressWidth: CGFloat {
         let progress = playerManager.progress
-        return max(0, min(1, progress)) * 80 // 80pt max width for bar
+        return max(0, min(1, progress)) * 80   // 0–80pt bar
     }
 }
 
-// UIKit blur wrapper for subtle background
+// UIKit blur wrapper
 struct VisualEffectView: UIViewRepresentable {
     let style: UIBlurEffect.Style
 
