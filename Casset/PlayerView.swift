@@ -6,7 +6,7 @@ struct PlayerView: View {
 
     @EnvironmentObject var libraryManager: LibraryManager
     @EnvironmentObject var playerManager: AudioPlayerManager
-    @EnvironmentObject var playerScreenTracker: PlayerScreenTracker   // NEW
+    @EnvironmentObject var playerScreenTracker: PlayerScreenTracker
 
     @State private var isShowingPanel       = false
     @State private var isShowingSettings    = false
@@ -15,6 +15,8 @@ struct PlayerView: View {
     @State private var bookmarkColor        = "default"
     @State private var resolvedURL: URL?
     @State private var cassetteActionTrigger = UUID()
+    @State private var isShowingCoverArt    = false   // NEW
+
     @AppStorage("showChapterTicker") var showChapterTicker: Bool = true
 
     var coverImage: UIImage? {
@@ -46,12 +48,21 @@ struct PlayerView: View {
 
             Spacer()
 
-            CassetteView(
-                isPlaying: playerManager.isPlaying,
-                coverImage: coverImage,
-                actionTrigger: cassetteActionTrigger
-            )
-            .padding(.vertical, 24)
+            // Cassette / cover art area
+            Button {
+                if coverImage != nil {
+                    isShowingCoverArt.toggle()
+                }
+            } label: {
+                CassetteView(
+                    isPlaying: playerManager.isPlaying,
+                    coverImage: coverImage,
+                    actionTrigger: cassetteActionTrigger,
+                    showArtOnly: isShowingCoverArt
+                )
+                .padding(.vertical, 24)
+            }
+            .buttonStyle(.plain)
 
             Spacer()
 
@@ -139,12 +150,12 @@ struct PlayerView: View {
             }
         }
         .onAppear {
-            playerScreenTracker.isShowingPlayer = true   // NEW
+            playerScreenTracker.isShowingPlayer = true
             loadBook()
         }
         .onDisappear {
             saveAndRelease()
-            playerScreenTracker.isShowingPlayer = false  // NEW
+            playerScreenTracker.isShowingPlayer = false
         }
         .sheet(isPresented: $isCreatingBookmark) {
             BookmarkCreationView(

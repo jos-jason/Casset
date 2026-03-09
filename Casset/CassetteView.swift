@@ -41,10 +41,6 @@ struct TapeLoopShape: Shape {
 }
 
 // MARK: - Bounce Window Shape
-// Rigid arc covers top 75% of each end cap (−90° → 45°).
-// One smooth cubic per side spans the lower quarter of the cap + the bottom.
-// Joint is at the 45° diagonal where arc and cubic tangents nearly agree — visually seamless.
-// G1 continuous everywhere.
 struct BounceWindowShape: Shape {
     var sagAmount: CGFloat
     var animatableData: CGFloat {
@@ -60,20 +56,13 @@ struct BounceWindowShape: Shape {
         let cy      = rect.midY
         let top     = rect.minY
         let bottom  = rect.maxY
-        let s2: CGFloat = 0.7071            // sin/cos 45°
+        let s2: CGFloat = 0.7071
 
-        // 45° handoff points
-        let rHx = x2 + r * s2              // right handoff x
-        let rHy = cy + r * s2              // right handoff y
-        let lHx = x1 - r * s2              // left  handoff x
-        let lHy = cy + r * s2              // left  handoff y (same by symmetry)
+        let rHx = x2 + r * s2
+        let rHy = cy + r * s2
+        let lHx = x1 - r * s2
+        let lHy = cy + r * s2
 
-        // Arc tangent at 45° on right cap (CCW): (−s2, s2) = down-left
-        // Arc tangent at 135° on left cap (CCW): (−s2, −s2) = up-left
-        // → cubic must ARRIVE at left handoff going up-left,
-        //   so CP2 sits below-right of lH.
-
-        // Handle lengths — capH grows with sag for organic deformation
         let capH   = r * 0.42 + sagAmount * 0.38
         let apexH  = (x2 - cx) * 0.30
         let apex   = CGPoint(x: cx, y: bottom + sagAmount)
@@ -82,7 +71,6 @@ struct BounceWindowShape: Shape {
         p.move(to: CGPoint(x: x1, y: top))
         p.addLine(to: CGPoint(x: x2, y: top))
 
-        // ── Right cap: rigid arc, top (−90°) → 45° ─────────────
         p.addArc(
             center:     CGPoint(x: x2, y: cy),
             radius:     r,
@@ -91,25 +79,18 @@ struct BounceWindowShape: Shape {
             clockwise:  false
         )
 
-        // ── Right blend: ONE cubic, 45° handoff → apex ──────────
-        // Departs tangentially (down-left) from arc — G1 at handoff
-        // Arrives horizontally at apex — G1 with left cubic
         p.addCurve(
             to:       apex,
             control1: CGPoint(x: rHx - capH * s2, y: rHy + capH * s2),
             control2: CGPoint(x: cx + apexH,       y: bottom + sagAmount)
         )
 
-        // ── Left blend: ONE cubic, apex → 135° handoff ──────────
-        // Departs horizontally from apex
-        // Arrives tangentially (up-left) into left arc — G1 at handoff
         p.addCurve(
             to:       CGPoint(x: lHx, y: lHy),
             control1: CGPoint(x: cx - apexH,       y: bottom + sagAmount),
             control2: CGPoint(x: lHx + capH * s2,  y: lHy  + capH * s2)
         )
 
-        // ── Left cap: rigid arc, 135° → 270° (= top) ───────────
         p.addArc(
             center:     CGPoint(x: x1, y: cy),
             radius:     r,
@@ -123,7 +104,7 @@ struct BounceWindowShape: Shape {
     }
 }
 
-// MARK: - Classic Mode (unchanged)
+// MARK: - Classic Mode
 struct ClassicCassetteView: View {
     var isPlaying:  Bool
     var coverImage: UIImage?
@@ -233,12 +214,11 @@ struct RealisticCassetteView: View {
                     .offset(y: -16)
                     .rotationEffect(.degrees(Double(i) * 120 + rotation))
             }
-            // No hub dot
         }
     }
 }
 
-// MARK: - Bold Mode (unchanged)
+// MARK: - Bold Mode
 struct BoldCassetteView: View {
     var isPlaying:     Bool
     var coverImage:    UIImage?
@@ -284,24 +264,46 @@ struct BoldCassetteView: View {
     }
 }
 
-// MARK: - CassetteView (router)
+// MARK: - CassetteView (router with art toggle + fixed height)
 struct CassetteView: View {
     var isPlaying:     Bool
     var coverImage:    UIImage? = nil
     var actionTrigger: UUID     = UUID()
+    var showArtOnly:   Bool     = false
+
     @AppStorage("showCoverOnCassette") var showCoverOnCassette: Bool   = true
     @AppStorage("cassetteMode")        var cassetteModeRaw:    String  = CassetteMode.classic.rawValue
+
+    @Environment(\.colorScheme) var colorScheme
+
     var cassetteMode:  CassetteMode { CassetteMode(rawValue: cassetteModeRaw) ?? .classic }
     var resolvedCover: UIImage?     { showCoverOnCassette ? coverImage : nil }
+    var cassetteStrokeColor: Color  { colorScheme == .dark ? .white : .black }
+
     var body: some View {
-        switch cassetteMode {
-        case .classic:
-            ClassicCassetteView(isPlaying: isPlaying, coverImage: resolvedCover)
-        case .realistic:
-            RealisticCassetteView(isPlaying: isPlaying, coverImage: resolvedCover, actionTrigger: actionTrigger)
-        case .bold:
-            BoldCassetteView(isPlaying: isPlaying, coverImage: resolvedCover, actionTrigger: actionTrigger)
+        ZStack {
+            if showArtOnly, let img = coverImage {
+                Image(uiImage: img)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 260, height: 170)
+                    .clipShape(RoundedRectangle(cornerRadius: 22))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 22)
+                            .stroke(cassetteStrokeColor, lineWidth: 4)
+                    )
+            } else {
+                switch cassetteMode {
+                case .classic:
+                    ClassicCassetteView(isPlaying: isPlaying, coverImage: resolvedCover)
+                case .realistic:
+                    RealisticCassetteView(isPlaying: isPlaying, coverImage: resolvedCover, actionTrigger: actionTrigger)
+                case .bold:
+                    BoldCassetteView(isPlaying: isPlaying, coverImage: resolvedCover, actionTrigger: actionTrigger)
+                }
+            }
         }
+        .frame(width: 310, height: 170)   // fixed size so title doesn’t move
     }
 }
 
