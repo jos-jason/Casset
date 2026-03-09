@@ -15,7 +15,7 @@ struct PlayerView: View {
     @State private var bookmarkColor        = "default"
     @State private var resolvedURL: URL?
     @State private var cassetteActionTrigger = UUID()
-    @State private var isShowingCoverArt    = false   // NEW
+    @State private var isShowingCoverArt    = false
 
     @AppStorage("showChapterTicker") var showChapterTicker: Bool = true
 
@@ -48,7 +48,6 @@ struct PlayerView: View {
 
             Spacer()
 
-            // Cassette / cover art area
             Button {
                 if coverImage != nil {
                     isShowingCoverArt.toggle()
@@ -181,6 +180,16 @@ struct PlayerView: View {
         guard let url = book.resolvedURL() else { return }
         guard url.startAccessingSecurityScopedResource() else { return }
         resolvedURL = url
+
+        // NEW: If this is already the current book, do not reload playback
+        if let currentID = playerManager.currentBookID,
+           currentID == book.id,
+           let player = playerManager.player {
+            playerManager.duration    = player.duration
+            playerManager.currentTime = player.currentTime
+            return
+        }
+
         playerManager.load(url: url, bookID: book.id)
         libraryManager.updateDuration(bookID: book.id, duration: playerManager.duration)
         if book.lastPosition > 0 {

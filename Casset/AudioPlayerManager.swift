@@ -66,7 +66,19 @@ class AudioPlayerManager: ObservableObject {
             .store(in: &cancellables)
     }
 
+    // MARK: - Playback
+
     func load(url: URL, bookID: UUID) {
+        // NEW: If this is already the current book, don't reload the audio
+        if let current = currentBookID,
+           current == bookID,
+           let player = player {
+            duration    = player.duration
+            currentTime = player.currentTime
+            isPlaying   = player.isPlaying
+            return
+        }
+
         do {
             player = try AVAudioPlayer(contentsOf: url)
             player?.prepareToPlay()
@@ -117,6 +129,8 @@ class AudioPlayerManager: ObservableObject {
         currentTime = player.currentTime
     }
 
+    // MARK: - Bookmarks
+
     func addBookmark(label: String, colorName: String = "default") {
         guard let player else { return }
         let time = player.currentTime
@@ -134,6 +148,8 @@ class AudioPlayerManager: ObservableObject {
         player?.currentTime = time
         currentTime = time
     }
+
+    // MARK: - Helpers
 
     func formatTime(_ seconds: Double) -> String {
         let h = Int(seconds) / 3600
