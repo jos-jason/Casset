@@ -6,8 +6,13 @@ struct ContentView: View {
     @EnvironmentObject var playerManager: AudioPlayerManager
     @EnvironmentObject var playerScreenTracker: PlayerScreenTracker
 
-    @State private var isImporting        = false
-    @State private var isImportingFolder  = false
+    enum ImportType {
+        case files
+        case folder
+    }
+
+    @State private var showingImporter = false
+    @State private var importType: ImportType = .files
     @State private var bookToGroup: Book? = nil
     @State private var isChoosingGroup    = false
     @State private var newGroupName       = ""
@@ -40,7 +45,10 @@ struct ContentView: View {
                                     Text("Your library is empty")
                                         .font(.title3)
                                         .foregroundStyle(.secondary)
-                                    Button("Import Audio File") { isImporting = true }
+                                    Button("Import Audio File") { 
+                                        importType = .files
+                                        showingImporter = true
+                                    }
                                         .buttonStyle(.borderedProminent)
                                 }
                             } else {
@@ -126,12 +134,14 @@ struct ContentView: View {
                         ToolbarItem(placement: .topBarTrailing) {
                             Menu {
                                 Button {
-                                    isImporting = true
+                                    importType = .files
+                                    showingImporter = true
                                 } label: {
                                     Label("Import Files", systemImage: "doc.badge.plus")
                                 }
                                 Button {
-                                    isImportingFolder = true
+                                    importType = .folder
+                                    showingImporter = true
                                 } label: {
                                     Label("Import Folder", systemImage: "folder.badge.plus")
                                 }
@@ -144,49 +154,44 @@ struct ContentView: View {
                         }
                     }
                     .fileImporter(
-                        isPresented: $isImporting,
-                        allowedContentTypes: [.audio],
-                        allowsMultipleSelection: true
+                        isPresented: $showingImporter,
+                        allowedContentTypes: importType == .files ? [.audio] : [.folder],
+                        allowsMultipleSelection: importType == .files
                     ) { result in
                         do {
                             let urls = try result.get()
-                            for url in urls {
-                                guard url.startAccessingSecurityScopedResource() else { continue }
-                                libraryManager.addBook(from: url)
-                                url.stopAccessingSecurityScopedResource()
-                            }
-                        } catch {
-                            print("Import failed: \(error)")
-                        }
-                    }
-                    .fileImporter(
-                        isPresented: $isImportingFolder,
-                        allowedContentTypes: [.folder],
-                        allowsMultipleSelection: false
-                    ) { result in
-                        do {
-                            let urls = try result.get()
-                            guard let folderURL = urls.first else { return }
-                            guard folderURL.startAccessingSecurityScopedResource() else { return }
-                            defer { folderURL.stopAccessingSecurityScopedResource() }
                             
-                            // Get all audio files in the folder (including subfolders)
-                            if let enumerator = FileManager.default.enumerator(
-                                at: folderURL,
-                                includingPropertiesForKeys: [.isRegularFileKey],
-                                options: [.skipsHiddenFiles]
-                            ) {
-                                for case let fileURL as URL in enumerator {
-                                    // Check if it's an audio file
-                                    if let resourceValues = try? fileURL.resourceValues(forKeys: [.typeIdentifierKey]),
-                                       let typeIdentifier = resourceValues.typeIdentifier,
-                                       UTType(typeIdentifier)?.conforms(to: .audio) == true {
-                                        libraryManager.addBook(from: fileURL)
+                            if importType == .files {
+                                // Import individual audio files
+                                for url in urls {
+                                    guard url.startAccessingSecurityScopedResource() else { continue }
+                                    libraryManager.addBook(from: url)
+                                    url.stopAccessingSecurityScopedResource()
+                                }
+                            } else {
+                                // Import folder
+                                guard let folderURL = urls.first else { return }
+                                guard folderURL.startAccessingSecurityScopedResource() else { return }
+                                defer { folderURL.stopAccessingSecurityScopedResource() }
+                                
+                                // Get all audio files in the folder (including subfolders)
+                                if let enumerator = FileManager.default.enumerator(
+                                    at: folderURL,
+                                    includingPropertiesForKeys: [.isRegularFileKey],
+                                    options: [.skipsHiddenFiles]
+                                ) {
+                                    for case let fileURL as URL in enumerator {
+                                        // Check if it's an audio file
+                                        if let resourceValues = try? fileURL.resourceValues(forKeys: [.typeIdentifierKey]),
+                                           let typeIdentifier = resourceValues.typeIdentifier,
+                                           UTType(typeIdentifier)?.conforms(to: .audio) == true {
+                                            libraryManager.addBook(from: fileURL)
+                                        }
                                     }
                                 }
                             }
                         } catch {
-                            print("Folder import failed: \(error)")
+                            print("Import failed: \(error)")
                         }
                     }
                     .confirmationDialog("Add to Collection", isPresented: $isChoosingGroup, titleVisibility: .visible) {

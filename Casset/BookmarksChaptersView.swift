@@ -4,6 +4,11 @@ struct BookmarksChaptersView: View {
     var playerManager: AudioPlayerManager
     @Environment(\.dismiss) var dismiss
     @Environment(\.colorScheme) var colorScheme
+    
+    @State private var editingBookmark: Bookmark?
+    @State private var editedText: String = ""
+    @State private var editedNote: String = ""
+    @State private var showEditSheet = false
 
     var body: some View {
         NavigationStack {
@@ -22,11 +27,29 @@ struct BookmarksChaptersView: View {
                                 HStack {
                                     Image(systemName: "bookmark.fill")
                                         .foregroundStyle(bookmarkColor(bookmark.colorName))
-                                    Text(bookmark.label)
-                                        .foregroundStyle(bookmarkColor(bookmark.colorName))
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(bookmark.label)
+                                            .foregroundStyle(bookmarkColor(bookmark.colorName))
+                                        if !bookmark.note.isEmpty {
+                                            Text(bookmark.note)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                                .lineLimit(2)
+                                        }
+                                    }
                                 }
                             }
                             .buttonStyle(.plain)
+                            .contextMenu {
+                                Button {
+                                    editingBookmark = bookmark
+                                    editedText = bookmark.label
+                                    editedNote = bookmark.note
+                                    showEditSheet = true
+                                } label: {
+                                    Label("Edit Bookmark", systemImage: "pencil")
+                                }
+                            }
                         }
                         .onDelete(perform: playerManager.removeBookmark)
                     }
@@ -63,10 +86,113 @@ struct BookmarksChaptersView: View {
                     Button("Done") { dismiss() }
                 }
             }
+            .sheet(isPresented: $showEditSheet) {
+                BookmarkEditView(
+                    bookmark: editingBookmark ?? Bookmark(time: 0, label: "", colorName: "default", note: ""),
+                    label: $editedText,
+                    note: $editedNote,
+                    onSave: {
+                        if let bookmark = editingBookmark {
+                            playerManager.updateBookmark(bookmark, label: editedText, note: editedNote)
+                        }
+                        showEditSheet = false
+                        editingBookmark = nil
+                    },
+                    onCancel: {
+                        showEditSheet = false
+                        editingBookmark = nil
+                    }
+                )
+                .presentationDetents([.medium, .large])
+            }
         }
     }
-
-    func bookmarkColor(_ name: String) -> Color {
+    
+    private struct BookmarkEditView: View {
+        let bookmark: Bookmark
+        @Binding var label: String
+        @Binding var note: String
+        let onSave: () -> Void
+        let onCancel: () -> Void
+        
+        @Environment(\.colorScheme) var colorScheme
+        
+        var body: some View {
+            NavigationStack {
+                Form {
+                    Section {
+                        TextField("Bookmark label", text: $label)
+                    } header: {
+                        Text("Label")
+                    }
+                    
+                    Section {
+                        TextField("Add a note about this bookmark...", text: $note, axis: .vertical)
+                            .lineLimit(5...10)
+                    } header: {
+                        Text("Note")
+                    }
+                    
+                    Section {
+                        HStack {
+                            Image(systemName: "clock.fill")
+                                .foregroundStyle(.secondary)
+                            Text("Time: \(formatTime(bookmark.time))")
+                                .foregroundStyle(.secondary)
+                        }
+                        
+                        HStack {
+                            Image(systemName: "bookmark.fill")
+                                .foregroundStyle(bookmarkColor(bookmark.colorName))
+                            Text("Color: \(bookmark.colorName.capitalized)")
+                                .foregroundStyle(.secondary)
+                        }
+                    } header: {
+                        Text("Bookmark Info")
+                    }
+                }
+                .navigationTitle("Edit Bookmark")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            onCancel()
+                        }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Save") {
+                            onSave()
+                        }
+                    }
+                }
+            }
+        }
+        
+        private func formatTime(_ seconds: Double) -> String {
+            let h = Int(seconds) / 3600
+            let m = (Int(seconds) % 3600) / 60
+            let s = Int(seconds) % 60
+            return h > 0
+                ? String(format: "%d:%02d:%02d", h, m, s)
+                : String(format: "%d:%02d", m, s)
+        }
+        
+        private func bookmarkColor(_ name: String) -> Color {
+            switch name {
+            case "red":    return .red
+            case "orange": return .orange
+            case "yellow": return .yellow
+            case "green":  return .green
+            case "blue":   return .blue
+            case "purple": return .purple
+            case "pink":   return .pink
+            default:       return colorScheme == .dark ? .white : .black
+            }
+        }
+    }
+    
+    
+    private func bookmarkColor(_ name: String) -> Color {
         switch name {
         case "red":    return .red
         case "orange": return .orange

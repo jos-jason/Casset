@@ -13,6 +13,7 @@ struct PlayerView: View {
     @State private var isCreatingBookmark   = false
     @State private var bookmarkLabel        = ""
     @State private var bookmarkColor        = "default"
+    @State private var bookmarkNote         = ""
     @State private var resolvedURL: URL?
     @State private var cassetteActionTrigger = UUID()
     @State private var isShowingCoverArt    = false
@@ -159,13 +160,15 @@ struct PlayerView: View {
         .sheet(isPresented: $isCreatingBookmark) {
             BookmarkCreationView(
                 label: $bookmarkLabel,
-                selectedColor: $bookmarkColor
+                selectedColor: $bookmarkColor,
+                note: $bookmarkNote
             ) {
-                playerManager.addBookmark(label: bookmarkLabel, colorName: bookmarkColor)
+                playerManager.addBookmark(label: bookmarkLabel, colorName: bookmarkColor, note: bookmarkNote)
                 bookmarkLabel = ""
                 bookmarkColor = "default"
+                bookmarkNote = ""
             }
-            .presentationDetents([.medium])
+            .presentationDetents([.large])
         }
         .sheet(isPresented: $isShowingPanel) {
             BookmarksChaptersView(playerManager: playerManager)

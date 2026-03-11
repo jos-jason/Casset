@@ -7,6 +7,7 @@ struct Bookmark: Identifiable, Codable {
     var time: Double
     var label: String
     var colorName: String = "default"
+    var note: String = ""
 }
 
 struct Chapter: Identifiable {
@@ -23,10 +24,15 @@ class AudioPlayerManager: ObservableObject {
     @Published var currentTime: Double = 0
     @Published var duration: Double = 1
     @Published var currentBookID: UUID?
+    
+    // Sleep Timer
+    @Published var sleepTimerEndTime: Date?
+    @Published var sleepTimerRemaining: TimeInterval = 0
 
     weak var libraryManager: LibraryManager?
 
     private var timer: Timer?
+    private var sleepTimer: Timer?
     private var cancellables = Set<AnyCancellable>()
 
     var skipDuration: Double {
@@ -131,16 +137,27 @@ class AudioPlayerManager: ObservableObject {
 
     // MARK: - Bookmarks
 
-    func addBookmark(label: String, colorName: String = "default") {
+    func addBookmark(label: String, colorName: String = "default", note: String = "") {
         guard let player else { return }
         let time = player.currentTime
         let finalLabel = label.isEmpty ? formatTime(time) : label
-        bookmarks.append(Bookmark(time: time, label: finalLabel, colorName: colorName))
+        bookmarks.append(Bookmark(time: time, label: finalLabel, colorName: colorName, note: note))
         persistBookmarks()
     }
 
     func removeBookmark(at offsets: IndexSet) {
         bookmarks.remove(atOffsets: offsets)
+        persistBookmarks()
+    }
+    
+    func updateBookmark(_ bookmark: Bookmark, label: String? = nil, note: String? = nil) {
+        guard let index = bookmarks.firstIndex(where: { $0.id == bookmark.id }) else { return }
+        if let label = label {
+            bookmarks[index].label = label
+        }
+        if let note = note {
+            bookmarks[index].note = note
+        }
         persistBookmarks()
     }
 
@@ -199,6 +216,46 @@ class AudioPlayerManager: ObservableObject {
             break
         }
         chapters = loaded.sorted { $0.startTime < $1.startTime }
+    }
+    
+    // MARK: - Sleep Timer
+    
+    func setSleepTimer(minutes: Int) {
+        cancelSleepTimer()
+        
+        let endTime = Date().addingTimeInterval(TimeInterval(minutes * 60))
+        sleepTimerEndTime = endTime
+        sleepTimerRemaining = TimeInterval(minutes * 60)
+        
+        // Start a timer to update remaining time and check if we should stop
+        sleepTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            
+            if let endTime = self.sleepTimerEndTime {
+                let remaining = endTime.timeIntervalSinceNow
+                
+                if remaining <= 0 {
+                    // Time's up - pause playback
+                    if self.isPlaying {
+                        self.togglePlayPause()
+                    }
+                    self.cancelSleepTimer()
+                } else {
+                    self.sleepTimerRemaining = remaining
+                }
+            }
+        }
+    }
+    
+    func cancelSleepTimer() {
+        sleepTimer?.invalidate()
+        sleepTimer = nil
+        sleepTimerEndTime = nil
+        sleepTimerRemaining = 0
+    }
+    
+    var isSleepTimerActive: Bool {
+        sleepTimerEndTime != nil
     }
 }
 

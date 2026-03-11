@@ -3,6 +3,7 @@ import SwiftUI
 struct BookmarkCreationView: View {
     @Binding var label: String
     @Binding var selectedColor: String
+    @Binding var note: String
     var onSave: () -> Void
     @Environment(\.dismiss) var dismiss
     @Environment(\.colorScheme) var colorScheme
@@ -23,6 +24,15 @@ struct BookmarkCreationView: View {
             Form {
                 Section("Label") {
                     TextField("e.g. Great quote, Chapter note...", text: $label)
+                }
+                
+                Section {
+                    TextField("Add an optional note...", text: $note, axis: .vertical)
+                        .lineLimit(3...8)
+                } header: {
+                    Text("Note (Optional)")
+                } footer: {
+                    Text("You can add more details about this bookmark or leave it blank.")
                 }
 
                 Section {
@@ -60,6 +70,7 @@ struct BookmarkCreationView: View {
                     Button("Cancel") {
                         label = ""
                         selectedColor = "default"
+                        note = ""
                         dismiss()
                     }
                 }

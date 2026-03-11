@@ -29,11 +29,16 @@ struct SettingsView: View {
     @AppStorage("showChapterTicker")   var showChapterTicker:   Bool   = true
     @AppStorage("cassetteMode")        var cassetteModeRaw:     String = CassetteMode.classic.rawValue
     @AppStorage("appAppearance")       var appAppearanceRaw:    String = AppAppearance.system.rawValue
+    
+    @EnvironmentObject var playerManager: AudioPlayerManager
 
     @Environment(\.dismiss) var dismiss
+    
+    @State private var selectedSleepMinutes: Int = 30
 
     let speeds:      [Double] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 3.5, 4.0]
     let skipOptions: [Double] = [10, 15, 30, 45, 60]
+    let sleepTimerOptions: [Int] = [5, 10, 15, 30, 45, 60, 90, 120]
 
     var body: some View {
         NavigationStack {
@@ -52,6 +57,44 @@ struct SettingsView: View {
                     }
                 } header: {
                     Text("Playback")
+                }
+                
+                Section {
+                    if playerManager.isSleepTimerActive {
+                        HStack {
+                            Text("Time Remaining")
+                            Spacer()
+                            Text(formatSleepTime(playerManager.sleepTimerRemaining))
+                                .foregroundStyle(.primary)
+                                .monospacedDigit()
+                        }
+                        
+                        Button("Cancel Timer") {
+                            playerManager.cancelSleepTimer()
+                        }
+                        .foregroundStyle(.red)
+                    } else {
+                        HStack {
+                            Picker("Duration", selection: $selectedSleepMinutes) {
+                                ForEach(sleepTimerOptions, id: \.self) { minutes in
+                                    Text("\(minutes) min").tag(minutes)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            
+                            Button("Start") {
+                                playerManager.setSleepTimer(minutes: selectedSleepMinutes)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.primary)
+                        }
+                    }
+                } header: {
+                    Text("Sleep Timer")
+                } footer: {
+                    if !playerManager.isSleepTimerActive {
+                        Text("Playback will automatically pause when the timer expires.")
+                    }
                 }
 
                 Section {
@@ -85,6 +128,12 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+    
+    private func formatSleepTime(_ seconds: TimeInterval) -> String {
+        let minutes = Int(seconds) / 60
+        let secs = Int(seconds) % 60
+        return String(format: "%d:%02d", minutes, secs)
     }
 }
 
