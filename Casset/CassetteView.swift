@@ -108,6 +108,7 @@ struct BounceWindowShape: Shape {
 struct ClassicCassetteView: View {
     var isPlaying:  Bool
     var coverImage: UIImage?
+    var playbackSpeed: Double = 1.0
     @State private var reelRotation: Double = 0
     @Environment(\.colorScheme) var colorScheme
     let timer = Timer.publish(every: 0.03, on: .main, in: .common).autoconnect()
@@ -135,7 +136,7 @@ struct ClassicCassetteView: View {
                     .frame(width: 18, height: 18)
             }
         }
-        .onReceive(timer) { _ in if isPlaying { reelRotation += 1.5 } }
+        .onReceive(timer) { _ in if isPlaying { reelRotation += 1.5 * playbackSpeed } }
     }
     func reelView(rotation: Double) -> some View {
         ZStack {
@@ -157,6 +158,7 @@ struct RealisticCassetteView: View {
     var isPlaying:     Bool
     var coverImage:    UIImage?
     var actionTrigger: UUID
+    var playbackSpeed: Double = 1.0
 
     @State private var reelRotation: Double  = 0
     @State private var windowSag:    CGFloat = 0
@@ -191,7 +193,7 @@ struct RealisticCassetteView: View {
                     .overlay(RoundedRectangle(cornerRadius: 6).stroke(strokeColor.opacity(0.6), lineWidth: 2))
             }
         }
-        .onReceive(timer) { _ in if isPlaying { reelRotation += 1.5 } }
+        .onReceive(timer) { _ in if isPlaying { reelRotation += 1.5 * playbackSpeed } }
         .onChange(of: isPlaying)     { triggerBounce() }
         .onChange(of: actionTrigger) { triggerBounce() }
     }
@@ -223,6 +225,7 @@ struct BoldCassetteView: View {
     var isPlaying:     Bool
     var coverImage:    UIImage?
     var actionTrigger: UUID
+    var playbackSpeed: Double = 1.0
     @State private var reelRotation: Double = 0
     @Environment(\.colorScheme) var colorScheme
     let timer = Timer.publish(every: 0.03, on: .main, in: .common).autoconnect()
@@ -246,7 +249,7 @@ struct BoldCassetteView: View {
                     .overlay(RoundedRectangle(cornerRadius: 6).stroke(strokeColor.opacity(0.6), lineWidth: 2))
             }
         }
-        .onReceive(timer) { _ in if isPlaying { reelRotation += 1.5 } }
+        .onReceive(timer) { _ in if isPlaying { reelRotation += 1.5 * playbackSpeed } }
     }
     func reelView(rotation: Double) -> some View {
         ZStack {
@@ -273,6 +276,7 @@ struct CassetteView: View {
 
     @AppStorage("showCoverOnCassette") var showCoverOnCassette: Bool   = true
     @AppStorage("cassetteMode")        var cassetteModeRaw:    String  = CassetteMode.classic.rawValue
+    @AppStorage("playbackSpeed")       var playbackSpeed:      Double  = 1.0
 
     @Environment(\.colorScheme) var colorScheme
 
@@ -295,11 +299,11 @@ struct CassetteView: View {
             } else {
                 switch cassetteMode {
                 case .classic:
-                    ClassicCassetteView(isPlaying: isPlaying, coverImage: resolvedCover)
+                    ClassicCassetteView(isPlaying: isPlaying, coverImage: resolvedCover, playbackSpeed: playbackSpeed)
                 case .realistic:
-                    RealisticCassetteView(isPlaying: isPlaying, coverImage: resolvedCover, actionTrigger: actionTrigger)
+                    RealisticCassetteView(isPlaying: isPlaying, coverImage: resolvedCover, actionTrigger: actionTrigger, playbackSpeed: playbackSpeed)
                 case .bold:
-                    BoldCassetteView(isPlaying: isPlaying, coverImage: resolvedCover, actionTrigger: actionTrigger)
+                    BoldCassetteView(isPlaying: isPlaying, coverImage: resolvedCover, actionTrigger: actionTrigger, playbackSpeed: playbackSpeed)
                 }
             }
         }

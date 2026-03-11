@@ -7,6 +7,7 @@ struct ContentView: View {
     @EnvironmentObject var playerScreenTracker: PlayerScreenTracker
 
     @State private var isImporting        = false
+    @State private var isImportingFolder  = false
     @State private var bookToGroup: Book? = nil
     @State private var isChoosingGroup    = false
     @State private var newGroupName       = ""
@@ -44,7 +45,7 @@ struct ContentView: View {
                                 }
                             } else {
                                 List {
-                                    ForEach(libraryManager.books) { book in
+                                    ForEach(libraryManager.sortedBooks) { book in
                                         NavigationLink(
                                             destination: PlayerView(book: book)
                                                 .environmentObject(libraryManager)
@@ -105,7 +106,36 @@ struct ContentView: View {
                     .navigationTitle("Library")
                     .toolbar {
                         ToolbarItem(placement: .topBarTrailing) {
-                            Button { isImporting = true } label: {
+                            Menu {
+                                ForEach(BookSortOption.allCases, id: \.self) { option in
+                                    Button {
+                                        libraryManager.sortOption = option
+                                    } label: {
+                                        HStack {
+                                            Text(option.displayName)
+                                            if libraryManager.sortOption == option {
+                                                Image(systemName: "checkmark")
+                                            }
+                                        }
+                                    }
+                                }
+                            } label: {
+                                Image(systemName: "arrow.up.arrow.down")
+                            }
+                        }
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Menu {
+                                Button {
+                                    isImporting = true
+                                } label: {
+                                    Label("Import Files", systemImage: "doc.badge.plus")
+                                }
+                                Button {
+                                    isImportingFolder = true
+                                } label: {
+                                    Label("Import Folder", systemImage: "folder.badge.plus")
+                                }
+                            } label: {
                                 Image(systemName: "plus")
                             }
                         }
@@ -127,6 +157,36 @@ struct ContentView: View {
                             }
                         } catch {
                             print("Import failed: \(error)")
+                        }
+                    }
+                    .fileImporter(
+                        isPresented: $isImportingFolder,
+                        allowedContentTypes: [.folder],
+                        allowsMultipleSelection: false
+                    ) { result in
+                        do {
+                            let urls = try result.get()
+                            guard let folderURL = urls.first else { return }
+                            guard folderURL.startAccessingSecurityScopedResource() else { return }
+                            defer { folderURL.stopAccessingSecurityScopedResource() }
+                            
+                            // Get all audio files in the folder (including subfolders)
+                            if let enumerator = FileManager.default.enumerator(
+                                at: folderURL,
+                                includingPropertiesForKeys: [.isRegularFileKey],
+                                options: [.skipsHiddenFiles]
+                            ) {
+                                for case let fileURL as URL in enumerator {
+                                    // Check if it's an audio file
+                                    if let resourceValues = try? fileURL.resourceValues(forKeys: [.typeIdentifierKey]),
+                                       let typeIdentifier = resourceValues.typeIdentifier,
+                                       UTType(typeIdentifier)?.conforms(to: .audio) == true {
+                                        libraryManager.addBook(from: fileURL)
+                                    }
+                                }
+                            }
+                        } catch {
+                            print("Folder import failed: \(error)")
                         }
                     }
                     .confirmationDialog("Add to Collection", isPresented: $isChoosingGroup, titleVisibility: .visible) {

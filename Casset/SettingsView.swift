@@ -32,7 +32,7 @@ struct SettingsView: View {
 
     @Environment(\.dismiss) var dismiss
 
-    let speeds:      [Double] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
+    let speeds:      [Double] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 3.5, 4.0]
     let skipOptions: [Double] = [10, 15, 30, 45, 60]
 
     var body: some View {
