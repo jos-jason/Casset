@@ -31,7 +31,7 @@ struct GroupsView: View {
                             ) {
                                 HStack {
                                     Image(systemName: "folder.fill")
-                                        .foregroundStyle(.yellow)
+                                        .foregroundStyle(.primary)
                                     VStack(alignment: .leading) {
                                         Text(group.name)
                                             .font(.headline)
