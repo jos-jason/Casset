@@ -36,6 +36,7 @@ class LibraryManager: ObservableObject {
         load()
         loadGroups()
         loadSortPreference()
+        cleanupOrphanedBookIDs()
     }
 
     func addBook(from url: URL) {
@@ -74,6 +75,7 @@ class LibraryManager: ObservableObject {
                     .appendingPathComponent(filename)
                 try? FileManager.default.removeItem(at: url)
             }
+            // Remove book ID from all groups
             for i in groups.indices {
                 groups[i].bookIDs.removeAll { $0 == book.id }
             }
@@ -81,6 +83,24 @@ class LibraryManager: ObservableObject {
         books.remove(atOffsets: offsets)
         save()
         saveGroups()
+    }
+    
+    /// Cleans up orphaned book IDs from all groups (books that no longer exist in the library)
+    func cleanupOrphanedBookIDs() {
+        let validBookIDs = Set(books.map { $0.id })
+        var needsSave = false
+        
+        for i in groups.indices {
+            let originalCount = groups[i].bookIDs.count
+            groups[i].bookIDs = groups[i].bookIDs.filter { validBookIDs.contains($0) }
+            if groups[i].bookIDs.count != originalCount {
+                needsSave = true
+            }
+        }
+        
+        if needsSave {
+            saveGroups()
+        }
     }
 
     // MARK: Groups

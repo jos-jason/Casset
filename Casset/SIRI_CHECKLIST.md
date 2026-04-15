@@ -21,12 +21,25 @@
 3. Tap **+** to create a new shortcut
 4. In the search bar, type your app's name
 5. You should see these actions appear:
+   - **Play Audiobook** (NEW! Select specific books)
    - Resume Audiobook
    - Pause Audiobook
    - Skip Forward
    - Skip Back
 
 **If you see these, Siri is working!** 🎉
+
+### Method 1b: Test Book Selection (NEW!)
+
+1. In Shortcuts, add the **"Play Audiobook"** action
+2. Tap on "Book"
+3. You should see:
+   - Your recently played books listed
+   - A search bar to find books
+4. Select a book
+5. Run the shortcut - it should play that book!
+
+**This is the feature that lets you pin books to your home screen!**
 
 ### Method 2: Use Siri Directly
 
@@ -92,9 +105,10 @@ All of this is **automatic** - you don't need to do anything!
 Once you verify it's working:
 
 1. Test all the commands (play, pause, skip forward, skip back)
-2. Try creating a custom shortcut in Shortcuts app
-3. Add a shortcut to your home screen
-4. Consider adding more intents (sleep timer, bookmarks, etc.)
+2. **Test selecting a specific book in the "Play Audiobook" action** (NEW!)
+3. **Add a book shortcut to your home screen** (see `HOME_SCREEN_SHORTCUTS.md`)
+4. Try creating a custom shortcut in Shortcuts app
+5. Consider adding more intents (sleep timer, bookmarks, etc.)
 
 ## Still Having Issues?
 

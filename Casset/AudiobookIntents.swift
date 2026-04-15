@@ -19,16 +19,58 @@ struct BookEntity: AppEntity {
     }
 }
 
-struct BookEntityQuery: EntityQuery {
+struct BookEntityQuery: EntityQuery, EntityStringQuery {
+    // MARK: - EntityQuery Protocol
+    
     func entities(for identifiers: [UUID]) async throws -> [BookEntity] {
-        // Get books from the app's library manager
-        // Note: This requires accessing shared data
-        return []
+        // Get specific books by ID
+        guard let books = await getBooks() else { return [] }
+        return books.filter { identifiers.contains($0.id) }
     }
     
     func suggestedEntities() async throws -> [BookEntity] {
         // Return recently played books
-        return []
+        guard let books = await getBooks() else { return [] }
+        return Array(books.prefix(5))
+    }
+    
+    // MARK: - EntityStringQuery Protocol
+    
+    func entities(matching string: String) async throws -> [BookEntity] {
+        // Search books by title or author
+        guard let books = await getBooks() else { return [] }
+        
+        if string.isEmpty {
+            return books
+        }
+        
+        return books.filter { book in
+            book.title.localizedCaseInsensitiveContains(string) ||
+            book.author.localizedCaseInsensitiveContains(string)
+        }
+    }
+    
+    // MARK: - Helper
+    
+    @MainActor
+    private func getBooks() async -> [BookEntity]? {
+        // Access the shared library manager
+        // Note: This uses UserDefaults to read the library
+        guard let data = UserDefaults.standard.data(forKey: "casset_library"),
+              let books = try? JSONDecoder().decode([Book].self, from: data) else {
+            return nil
+        }
+        
+        // Convert to BookEntity and sort by last interaction
+        return books
+            .sorted { $0.lastInteracted > $1.lastInteracted }
+            .map { book in
+                BookEntity(
+                    id: book.id,
+                    title: book.title,
+                    author: book.author
+                )
+            }
     }
 }
 
@@ -36,22 +78,27 @@ struct BookEntityQuery: EntityQuery {
 
 struct PlayAudiobookIntent: AudioPlaybackIntent {
     static var title: LocalizedStringResource = "Play Audiobook"
-    static var description = IntentDescription("Plays your audiobook")
+    static var description = IntentDescription("Plays a specific audiobook from your library")
     
     static var openAppWhenRun: Bool = false
     static var isDiscoverable: Bool = true
     
-    @Parameter(title: "Book")
-    var book: BookEntity?
+    @Parameter(title: "Book", description: "The audiobook to play")
+    var book: BookEntity
     
     func perform() async throws -> some IntentResult {
-        // Post notification to play the book
+        // Post notification to play the specific book
         NotificationCenter.default.post(
             name: NSNotification.Name("PlayAudiobookFromSiri"),
             object: nil,
-            userInfo: book.map { ["bookID": $0.id] }
+            userInfo: ["bookID": book.id]
         )
+        
         return .result()
+    }
+    
+    static var parameterSummary: some ParameterSummary {
+        Summary("Play \(\.$book)")
     }
 }
 
@@ -154,7 +201,7 @@ struct AudiobookShortcuts: AppShortcutsProvider {
             intent: SkipForwardIntent(),
             phrases: [
                 "Skip forward in \(.applicationName)",
-                "Skip ahead in my audiobook"
+                "Skip ahead in \(.applicationName)"
             ],
             shortTitle: "Skip Forward",
             systemImageName: "goforward.30"
@@ -164,7 +211,7 @@ struct AudiobookShortcuts: AppShortcutsProvider {
             intent: SkipBackwardIntent(),
             phrases: [
                 "Skip back in \(.applicationName)",
-                "Go back in my audiobook"
+                "Go back in \(.applicationName)"
             ],
             shortTitle: "Skip Back",
             systemImageName: "gobackward.30"

@@ -9,6 +9,21 @@ struct BookmarkNotesView: View {
     @State private var selectedColorFilter: String? = nil
     @State private var showExportSheet = false
     @State private var exportText = ""
+    @State private var exportFormat: ExportFormat = .markdown
+    
+    enum ExportFormat: String, CaseIterable {
+        case plainText = "Plain Text"
+        case markdown = "Markdown"
+        case richText = "Rich Text"
+        
+        var fileExtension: String {
+            switch self {
+            case .plainText: return "txt"
+            case .markdown: return "md"
+            case .richText: return "rtf"
+            }
+        }
+    }
     
     let colorFilters: [(name: String, color: Color)] = [
         ("default", Color.primary),
@@ -71,20 +86,130 @@ struct BookmarkNotesView: View {
                         
                         Divider()
                         
-                        ForEach(colorFilters, id: \.name) { item in
-                            Button {
-                                selectedColorFilter = item.name
-                            } label: {
-                                HStack {
+                        Button {
+                            selectedColorFilter = "default"
+                        } label: {
+                            if selectedColorFilter == "default" {
+                                Label("Default", systemImage: "checkmark")
+                            } else {
+                                Label {
+                                    Text("Default")
+                                } icon: {
                                     Image(systemName: "bookmark.fill")
-                                        .foregroundStyle(item.name == "default"
-                                                       ? (colorScheme == .dark ? Color.white : Color.black)
-                                                       : item.color)
-                                    Text(item.name.capitalized)
-                                    if selectedColorFilter == item.name {
-                                        Spacer()
-                                        Image(systemName: "checkmark")
-                                    }
+                                        .symbolRenderingMode(.palette)
+                                        .foregroundStyle(colorScheme == .dark ? .white : .black, .clear)
+                                }
+                            }
+                        }
+                        
+                        Button {
+                            selectedColorFilter = "red"
+                        } label: {
+                            if selectedColorFilter == "red" {
+                                Label("Red", systemImage: "checkmark")
+                            } else {
+                                Label {
+                                    Text("Red")
+                                } icon: {
+                                    Image(systemName: "bookmark.fill")
+                                        .symbolRenderingMode(.palette)
+                                        .foregroundStyle(.red, .clear)
+                                }
+                            }
+                        }
+                        
+                        Button {
+                            selectedColorFilter = "orange"
+                        } label: {
+                            if selectedColorFilter == "orange" {
+                                Label("Orange", systemImage: "checkmark")
+                            } else {
+                                Label {
+                                    Text("Orange")
+                                } icon: {
+                                    Image(systemName: "bookmark.fill")
+                                        .symbolRenderingMode(.palette)
+                                        .foregroundStyle(.orange, .clear)
+                                }
+                            }
+                        }
+                        
+                        Button {
+                            selectedColorFilter = "yellow"
+                        } label: {
+                            if selectedColorFilter == "yellow" {
+                                Label("Yellow", systemImage: "checkmark")
+                            } else {
+                                Label {
+                                    Text("Yellow")
+                                } icon: {
+                                    Image(systemName: "bookmark.fill")
+                                        .symbolRenderingMode(.palette)
+                                        .foregroundStyle(.yellow, .clear)
+                                }
+                            }
+                        }
+                        
+                        Button {
+                            selectedColorFilter = "green"
+                        } label: {
+                            if selectedColorFilter == "green" {
+                                Label("Green", systemImage: "checkmark")
+                            } else {
+                                Label {
+                                    Text("Green")
+                                } icon: {
+                                    Image(systemName: "bookmark.fill")
+                                        .symbolRenderingMode(.palette)
+                                        .foregroundStyle(.green, .clear)
+                                }
+                            }
+                        }
+                        
+                        Button {
+                            selectedColorFilter = "blue"
+                        } label: {
+                            if selectedColorFilter == "blue" {
+                                Label("Blue", systemImage: "checkmark")
+                            } else {
+                                Label {
+                                    Text("Blue")
+                                } icon: {
+                                    Image(systemName: "bookmark.fill")
+                                        .symbolRenderingMode(.palette)
+                                        .foregroundStyle(.blue, .clear)
+                                }
+                            }
+                        }
+                        
+                        Button {
+                            selectedColorFilter = "purple"
+                        } label: {
+                            if selectedColorFilter == "purple" {
+                                Label("Purple", systemImage: "checkmark")
+                            } else {
+                                Label {
+                                    Text("Purple")
+                                } icon: {
+                                    Image(systemName: "bookmark.fill")
+                                        .symbolRenderingMode(.palette)
+                                        .foregroundStyle(.purple, .clear)
+                                }
+                            }
+                        }
+                        
+                        Button {
+                            selectedColorFilter = "pink"
+                        } label: {
+                            if selectedColorFilter == "pink" {
+                                Label("Pink", systemImage: "checkmark")
+                            } else {
+                                Label {
+                                    Text("Pink")
+                                } icon: {
+                                    Image(systemName: "bookmark.fill")
+                                        .symbolRenderingMode(.palette)
+                                        .foregroundStyle(.pink, .clear)
                                 }
                             }
                         }
@@ -107,24 +232,129 @@ struct BookmarkNotesView: View {
                 }
             }
             .sheet(isPresented: $showExportSheet) {
-                ExportNotesView(exportText: exportText)
+                ExportNotesView(exportText: exportText, exportFormat: $exportFormat)
             }
         }
     }
     
     private func generateExportText() {
+        switch exportFormat {
+        case .plainText:
+            exportText = generatePlainText()
+        case .markdown:
+            exportText = generateMarkdown()
+        case .richText:
+            exportText = generateRichText()
+        }
+    }
+    
+    private func generatePlainText() -> String {
         var text = "Bookmark Notes\n"
         text += "================\n\n"
         
         for bookmark in filteredBookmarks {
-            text += "[\(playerManager.formatTime(bookmark.time))] \(bookmark.label)\n"
+            let colorEmoji = bookmarkEmoji(bookmark.colorName)
+            text += "\(colorEmoji) [\(playerManager.formatTime(bookmark.time))] \(bookmark.label)\n"
             if !bookmark.note.isEmpty {
                 text += "\(bookmark.note)\n"
             }
             text += "\n"
         }
         
-        exportText = text
+        return text
+    }
+    
+    private func generateMarkdown() -> String {
+        var text = "# Bookmark Notes\n\n"
+        
+        for bookmark in filteredBookmarks {
+            let colorEmoji = bookmarkEmoji(bookmark.colorName)
+            text += "## \(colorEmoji) \(bookmark.label)\n\n"
+            text += "**Time:** `\(playerManager.formatTime(bookmark.time))`  \n"
+            text += "**Color:** \(bookmark.colorName.capitalized)\n\n"
+            
+            if !bookmark.note.isEmpty {
+                text += "\(bookmark.note)\n\n"
+            }
+            
+            text += "---\n\n"
+        }
+        
+        return text
+    }
+    
+    private func generateRichText() -> String {
+        var rtf = "{\\rtf1\\ansi\\deff0\n"
+        rtf += "{\\fonttbl{\\f0 Helvetica;}{\\f1 Courier;}}\n"
+        rtf += "{\\colortbl;\\red255\\green0\\blue0;\\red255\\green165\\blue0;\\red255\\green255\\blue0;\\red0\\green255\\blue0;\\red0\\green0\\blue255;\\red128\\green0\\blue128;\\red255\\green192\\blue203;\\red0\\green0\\blue0;}\n"
+        
+        rtf += "\\f0\\fs28\\b Bookmark Notes\\b0\\fs24\\par\n"
+        rtf += "\\par\n"
+        
+        for bookmark in filteredBookmarks {
+            let colorIndex = rtfColorIndex(bookmark.colorName)
+            let colorEmoji = bookmarkEmoji(bookmark.colorName)
+            
+            rtf += "\\cf\(colorIndex)\\b \\fs26 \(colorEmoji) \(escapeRTF(bookmark.label))\\b0\\fs24\\par\n"
+            rtf += "\\cf8 Time: \(playerManager.formatTime(bookmark.time))\\par\n"
+            
+            if !bookmark.note.isEmpty {
+                rtf += "\\par\n"
+                rtf += "\(escapeRTF(bookmark.note))\\par\n"
+            }
+            
+            rtf += "\\par\n"
+        }
+        
+        rtf += "}"
+        return rtf
+    }
+    
+    private func rtfColorIndex(_ colorName: String) -> Int {
+        switch colorName {
+        case "red":    return 1
+        case "orange": return 2
+        case "yellow": return 3
+        case "green":  return 4
+        case "blue":   return 5
+        case "purple": return 6
+        case "pink":   return 7
+        default:       return 8
+        }
+    }
+    
+    private func escapeRTF(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "{", with: "\\{")
+            .replacingOccurrences(of: "}", with: "\\}")
+            .replacingOccurrences(of: "\n", with: "\\par\n")
+    }
+    
+    private func bookmarkEmoji(_ colorName: String) -> String {
+        switch colorName {
+        case "red":    return "🔴"
+        case "orange": return "🟠"
+        case "yellow": return "🟡"
+        case "green":  return "🟢"
+        case "blue":   return "🔵"
+        case "purple": return "🟣"
+        case "pink":   return "🩷"
+        default:       return "⚪️"
+        }
+    }
+    
+    private func bookmarkColor(_ name: String) -> Color {
+        switch name {
+        case "red":    return .red
+        case "orange": return .orange
+        case "yellow": return .yellow
+        case "green":  return .green
+        case "blue":   return .blue
+        case "purple": return .purple
+        case "pink":   return .pink
+        default:       return colorScheme == .dark ? .white : .black
+        }
     }
 }
 
@@ -161,41 +391,14 @@ struct BookmarkNoteCard: View {
             }
             
             // Note content
-            if isEditing {
-                TextField("Add a note...", text: $bookmark.note, axis: .vertical)
-                    .textFieldStyle(.plain)
-                    .lineLimit(3...10)
-                    .focused($isFocused)
-                    .padding(8)
-                    .background(Color.secondary.opacity(0.1))
-                    .cornerRadius(8)
-            } else {
-                if !bookmark.note.isEmpty {
-                    Text(bookmark.note)
-                        .font(.body)
-                        .foregroundStyle(.primary)
-                } else {
-                    Text("No note added")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                        .italic()
+            TextField("Add a note...", text: $bookmark.note, axis: .vertical)
+                .textFieldStyle(.plain)
+                .lineLimit(3...10)
+                .focused($isFocused)
+                .font(.body)
+                .onChange(of: bookmark.note) { oldValue, newValue in
+                    onUpdate(bookmark)
                 }
-            }
-            
-            // Edit button
-            HStack {
-                Spacer()
-                Button {
-                    if isEditing {
-                        onUpdate(bookmark)
-                    }
-                    isEditing.toggle()
-                } label: {
-                    Text(isEditing ? "Done" : "Edit")
-                        .font(.caption)
-                        .foregroundStyle(.blue)
-                }
-            }
         }
         .padding(.vertical, 8)
     }
@@ -225,15 +428,30 @@ struct BookmarkNoteCard: View {
 
 struct ExportNotesView: View {
     let exportText: String
+    @Binding var exportFormat: BookmarkNotesView.ExportFormat
     @Environment(\.dismiss) var dismiss
     
     var body: some View {
         NavigationStack {
-            ScrollView {
-                Text(exportText)
-                    .font(.system(.body, design: .monospaced))
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(spacing: 0) {
+                // Format picker
+                Picker("Format", selection: $exportFormat) {
+                    ForEach(BookmarkNotesView.ExportFormat.allCases, id: \.self) { format in
+                        Text(format.rawValue).tag(format)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding()
+                
+                Divider()
+                
+                // Preview
+                ScrollView {
+                    Text(exportText)
+                        .font(.system(.body, design: exportFormat == .richText ? .default : .monospaced))
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
             .navigationTitle("Export Notes")
             .navigationBarTitleDisplayMode(.inline)
@@ -242,7 +460,10 @@ struct ExportNotesView: View {
                     Button("Done") { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    ShareLink(item: exportText) {
+                    ShareLink(item: exportText, preview: SharePreview(
+                        "Bookmark Notes",
+                        image: Image(systemName: "bookmark.fill")
+                    )) {
                         Image(systemName: "square.and.arrow.up")
                     }
                 }

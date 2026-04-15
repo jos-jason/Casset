@@ -1,9 +1,12 @@
 import SwiftUI
 import AVFoundation
+import AppIntents
 
 @main
 struct CassetApp: App {
     @AppStorage("appAppearance") var appAppearanceRaw: String = AppAppearance.system.rawValue
+
+    @Environment(\.scenePhase) private var scenePhase
 
     @StateObject private var libraryManager = LibraryManager()
     @StateObject private var playerManager  = AudioPlayerManager()
@@ -12,6 +15,9 @@ struct CassetApp: App {
     init() {
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
         try? AVAudioSession.sharedInstance().setActive(true)
+        
+        // Debug: Print registered shortcuts
+        print("📱 App Shortcuts registered: \(AudiobookShortcuts.appShortcuts.count)")
     }
 
     var appearance: AppAppearance {
@@ -28,6 +34,11 @@ struct CassetApp: App {
                     playerManager.attachLibraryManager(libraryManager)
                 }
                 .preferredColorScheme(appearance.colorScheme)
+                .onChange(of: scenePhase) { _, newPhase in
+                    if newPhase == .background || newPhase == .inactive {
+                        playerManager.saveCurrentPosition()
+                    }
+                }
         }
     }
 }

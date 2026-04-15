@@ -21,17 +21,18 @@ I've created `AudiobookIntents.swift` with App Intents that enable Siri voice co
 
 ## Setup Instructions
 
-### Step 1: Add the Siri Capability
+### ✅ No Capability Required!
 
-1. Open your project in Xcode
-2. Select your app target
-3. Go to "Signing & Capabilities"
-4. Click "+ Capability"
-5. Add **"Siri"**
+**Good news:** With the modern AppIntents framework, you **don't need to add any Siri capability**! 
 
-That's it! No extra configuration needed with the modern AppIntents framework.
+The old "Siri" capability has been deprecated. As long as you have:
+- `import AppIntents` in your app file ✅ (already added)
+- The `AudiobookIntents.swift` file in your project ✅ (already created)
+- The `AudiobookShortcuts` provider defined ✅ (already done)
 
-### Step 2: (Optional) Test in Shortcuts App
+iOS will automatically register your intents when the app launches!
+
+### Step 1: (Optional) Test in Shortcuts App
 
 Before testing with Siri, verify the intents are working:
 

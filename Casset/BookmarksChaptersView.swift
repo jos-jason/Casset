@@ -9,6 +9,7 @@ struct BookmarksChaptersView: View {
     @State private var editedText: String = ""
     @State private var editedNote: String = ""
     @State private var showEditSheet = false
+    @State private var showNotesView = false
 
     var body: some View {
         NavigationStack {
@@ -37,7 +38,9 @@ struct BookmarksChaptersView: View {
                                                 .lineLimit(2)
                                         }
                                     }
+                                    Spacer()
                                 }
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             .contextMenu {
@@ -48,6 +51,16 @@ struct BookmarksChaptersView: View {
                                     showEditSheet = true
                                 } label: {
                                     Label("Edit Bookmark", systemImage: "pencil")
+                                }
+                                
+                                Button {
+                                    showNotesView = true
+                                } label: {
+                                    Label {
+                                        Text("View Notes")
+                                    } icon: {
+                                        QuillInkwellIcon(size: 16)
+                                    }
                                 }
                             }
                         }
@@ -60,6 +73,9 @@ struct BookmarksChaptersView: View {
                         ForEach(playerManager.chapters) { chapter in
                             Button {
                                 playerManager.seekTo(chapter.startTime)
+                                if !playerManager.isPlaying {
+                                    playerManager.togglePlayPause()
+                                }
                                 dismiss()
                             } label: {
                                 HStack {
@@ -72,7 +88,9 @@ struct BookmarksChaptersView: View {
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
+                                    Spacer()
                                 }
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                         }
@@ -82,6 +100,14 @@ struct BookmarksChaptersView: View {
             .navigationTitle("Bookmarks & Chapters")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showNotesView = true
+                    } label: {
+                        QuillInkwellIcon(size: 22)
+                    }
+                    .disabled(playerManager.bookmarks.isEmpty)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                 }
@@ -101,9 +127,16 @@ struct BookmarksChaptersView: View {
                     onCancel: {
                         showEditSheet = false
                         editingBookmark = nil
+                    },
+                    onViewNotes: {
+                        showEditSheet = false
+                        showNotesView = true
                     }
                 )
                 .presentationDetents([.medium, .large])
+            }
+            .sheet(isPresented: $showNotesView) {
+                BookmarkNotesView(playerManager: playerManager)
             }
         }
     }
@@ -114,6 +147,7 @@ struct BookmarksChaptersView: View {
         @Binding var note: String
         let onSave: () -> Void
         let onCancel: () -> Void
+        let onViewNotes: () -> Void
         
         @Environment(\.colorScheme) var colorScheme
         
@@ -146,6 +180,20 @@ struct BookmarksChaptersView: View {
                                 .foregroundStyle(bookmarkColor(bookmark.colorName))
                             Text("Color: \(bookmark.colorName.capitalized)")
                                 .foregroundStyle(.secondary)
+                        }
+                        
+                        Button {
+                            onViewNotes()
+                        } label: {
+                            HStack {
+                                QuillInkwellIcon(size: 16)
+                                Text("View All Notes")
+                                    .foregroundStyle(.blue)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
                         }
                     } header: {
                         Text("Bookmark Info")

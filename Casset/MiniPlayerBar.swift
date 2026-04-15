@@ -14,23 +14,20 @@ struct MiniPlayerBar: View {
     var body: some View {
         HStack(spacing: 12) {
 
-            // Artwork thumbnail as tap target
-            Button(action: onTap) {
-                Group {
-                    if let img = coverImage {
-                        Image(uiImage: img)
-                            .resizable()
-                            .scaledToFill()
-                    } else {
-                        Image(systemName: "book.closed.fill")
-                            .font(.system(size: 18))
-                            .foregroundStyle(.secondary)
-                    }
+            // Artwork thumbnail
+            Group {
+                if let img = coverImage {
+                    Image(uiImage: img)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Image(systemName: "book.closed.fill")
+                        .font(.system(size: 18))
+                        .foregroundStyle(.secondary)
                 }
-                .frame(width: 40, height: 40)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
             }
-            .buttonStyle(.plain)
+            .frame(width: 40, height: 40)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
 
             // Title + subtle progress bar
             VStack(alignment: .leading, spacing: 4) {
@@ -86,6 +83,10 @@ struct MiniPlayerBar: View {
             VisualEffectView(style: .systemMaterial)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
         )
+        .contentShape(RoundedRectangle(cornerRadius: 16))
+        .onTapGesture {
+            onTap()
+        }
     }
 
     private var progressWidth: CGFloat {

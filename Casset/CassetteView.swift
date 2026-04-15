@@ -406,15 +406,28 @@ struct CassetteView: View {
     var body: some View {
         ZStack {
             if showArtOnly, let img = coverImage {
-                Image(uiImage: img)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 260, height: 170)
-                    .clipShape(RoundedRectangle(cornerRadius: 22))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 22)
-                            .stroke(cassetteStrokeColor, lineWidth: 4)
-                    )
+                ZStack {
+                    // Background: Cover art with blur mirror effect
+                    Image(uiImage: img)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 330, height: 330)
+                        .blur(radius: 40)
+                        .clipShape(RoundedRectangle(cornerRadius: 28))
+                    
+                    // Main cover image
+                    Image(uiImage: img)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 330, height: 330)
+                        .clipShape(RoundedRectangle(cornerRadius: 28))
+                    
+                    // Border stroke
+                    RoundedRectangle(cornerRadius: 28)
+                        .stroke(cassetteStrokeColor, lineWidth: 4)
+                        .frame(width: 330, height: 330)
+                }
+                .frame(width: 330, height: 330)
             } else {
                 switch cassetteMode {
                 case .classic:
