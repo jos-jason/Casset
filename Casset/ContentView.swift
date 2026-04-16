@@ -106,7 +106,11 @@ struct ContentView: View {
                                             .tint(.yellow)
                                         }
                                     }
-                                    .onDelete(perform: libraryManager.removeBook)
+                                    .onDelete { offsets in
+                                        let sorted = libraryManager.sortedBooks
+                                        let idsToRemove = offsets.map { sorted[$0].id }
+                                        libraryManager.removeBooks(withIDs: idsToRemove)
+                                    }
                                 }
                             }
                         }

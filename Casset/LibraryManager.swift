@@ -84,6 +84,24 @@ class LibraryManager: ObservableObject {
         save()
         saveGroups()
     }
+
+    func removeBooks(withIDs ids: [UUID]) {
+        let idSet = Set(ids)
+        for book in books where idSet.contains(book.id) {
+            if let filename = book.artworkFilename {
+                let url = FileManager.default
+                    .urls(for: .documentDirectory, in: .userDomainMask)[0]
+                    .appendingPathComponent(filename)
+                try? FileManager.default.removeItem(at: url)
+            }
+            for i in groups.indices {
+                groups[i].bookIDs.removeAll { $0 == book.id }
+            }
+        }
+        books.removeAll { idSet.contains($0.id) }
+        save()
+        saveGroups()
+    }
     
     /// Cleans up orphaned book IDs from all groups (books that no longer exist in the library)
     func cleanupOrphanedBookIDs() {
