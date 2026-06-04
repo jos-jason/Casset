@@ -30,6 +30,7 @@ struct SettingsView: View {
     @AppStorage("cassetteMode")        var cassetteModeRaw:     String = CassetteMode.classic.rawValue
     @AppStorage("appAppearance")       var appAppearanceRaw:    String = AppAppearance.system.rawValue
     @AppStorage("colorIntensity")      var colorIntensity:      Double = 0.5
+    @AppStorage("useSimpleLibrary")    var useSimpleLibrary:    Bool   = false
     
     @EnvironmentObject var playerManager: AudioPlayerManager
 
@@ -99,6 +100,8 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    Toggle("Simple Library", isOn: $useSimpleLibrary)
+
                     Picker("Cassette Style", selection: $cassetteModeRaw) {
                         ForEach(CassetteMode.allCases, id: \.rawValue) { mode in
                             Text(mode.label).tag(mode.rawValue)

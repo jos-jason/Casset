@@ -6,6 +6,8 @@ struct ContentView: View {
     @EnvironmentObject var playerManager: AudioPlayerManager
     @EnvironmentObject var playerScreenTracker: PlayerScreenTracker
 
+    @AppStorage("useSimpleLibrary") var useSimpleLibrary: Bool = false
+
     enum ImportType {
         case files
         case folder
@@ -38,54 +40,56 @@ struct ContentView: View {
                 }
             }
 
-            // Bottom fade gradient
-            LinearGradient(
-                colors: [.black, .black.opacity(0)],
-                startPoint: .bottom,
-                endPoint: .top
-            )
-            .frame(height: 80)
-            .allowsHitTesting(false)
+            if !playerScreenTracker.isShowingPlayer {
+                // Bottom fade gradient
+                LinearGradient(
+                    colors: [.black, .black.opacity(0)],
+                    startPoint: .bottom,
+                    endPoint: .top
+                )
+                .frame(height: 80)
+                .allowsHitTesting(false)
 
-            // MARK: Custom tab bar
-            VStack(spacing: 0) {
-                Spacer()
+                // MARK: Custom tab bar
+                VStack(spacing: 0) {
+                    Spacer()
 
-                GlassEffectContainer(spacing: 12) {
-                    HStack(spacing: 12) {
-                        Button {
-                            selectedTab = 0
-                        } label: {
-                            VStack(spacing: 4) {
-                                Image(systemName: "books.vertical")
-                                    .font(.system(size: 18))
-                                Text("Library")
-                                    .font(.caption2)
+                    GlassEffectContainer(spacing: 12) {
+                        HStack(spacing: 12) {
+                            Button {
+                                selectedTab = 0
+                            } label: {
+                                VStack(spacing: 4) {
+                                    Image(systemName: "books.vertical")
+                                        .font(.system(size: 18))
+                                    Text("Library")
+                                        .font(.caption2)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                                .foregroundStyle(selectedTab == 0 ? .white : .gray)
                             }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                            .foregroundStyle(selectedTab == 0 ? .white : .gray)
-                        }
-                        .glassEffect(.regular.interactive(), in: .capsule)
+                            .glassEffect(.regular.interactive(), in: .capsule)
 
-                        Button {
-                            selectedTab = 1
-                        } label: {
-                            VStack(spacing: 4) {
-                                Image(systemName: "folder")
-                                    .font(.system(size: 18))
-                                Text("Collections")
-                                    .font(.caption2)
+                            Button {
+                                selectedTab = 1
+                            } label: {
+                                VStack(spacing: 4) {
+                                    Image(systemName: "folder")
+                                        .font(.system(size: 18))
+                                    Text("Collections")
+                                        .font(.caption2)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                                .foregroundStyle(selectedTab == 1 ? .white : .gray)
                             }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                            .foregroundStyle(selectedTab == 1 ? .white : .gray)
+                            .glassEffect(.regular.interactive(), in: .capsule)
                         }
-                        .glassEffect(.regular.interactive(), in: .capsule)
+                        .padding(.horizontal, 40)
                     }
-                    .padding(.horizontal, 40)
+                    .padding(.bottom, 4)
                 }
-                .padding(.bottom, 4)
             }
         }
         .ignoresSafeArea(edges: .bottom)
@@ -118,7 +122,79 @@ struct ContentView: View {
                                 }
                                     .buttonStyle(.borderedProminent)
                             }
+                        } else if useSimpleLibrary {
+                            // Simple list style (standard Apple UI)
+                            List {
+                                ForEach(libraryManager.sortedBooks) { book in
+                                    NavigationLink(
+                                        destination: PlayerView(book: book)
+                                            .environmentObject(libraryManager)
+                                            .environmentObject(playerManager)
+                                            .environmentObject(playerScreenTracker)
+                                    ) {
+                                        HStack(spacing: 14) {
+                                            Group {
+                                                if let artURL = book.bestCoverArtURL(),
+                                                   let uiImage = UIImage(contentsOfFile: artURL.path) {
+                                                    Image(uiImage: uiImage)
+                                                        .resizable()
+                                                        .scaledToFill()
+                                                } else {
+                                                    Image(systemName: "book.closed.fill")
+                                                        .font(.system(size: 28))
+                                                        .foregroundStyle(.secondary)
+                                                }
+                                            }
+                                            .frame(width: 56, height: 56)
+                                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                                            .background(
+                                                RoundedRectangle(cornerRadius: 8)
+                                                    .fill(Color.secondary.opacity(0.15))
+                                            )
+
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text(book.title)
+                                                    .font(.headline)
+                                                if !book.author.isEmpty {
+                                                    Text(book.author)
+                                                        .font(.subheadline)
+                                                        .foregroundStyle(.secondary)
+                                                } else if book.lastPosition > 0 {
+                                                    Text("Last played: \(formatTime(book.lastPosition))")
+                                                        .font(.caption)
+                                                        .foregroundStyle(.secondary)
+                                                } else {
+                                                    Text("Not started")
+                                                        .font(.caption)
+                                                        .foregroundStyle(.secondary)
+                                                }
+                                            }
+                                        }
+                                        .padding(.vertical, 4)
+                                    }
+                                    .contextMenu {
+                                        Button {
+                                            bookToEdit = book
+                                        } label: {
+                                            Label("Edit Book Info", systemImage: "pencil")
+                                        }
+                                        Button {
+                                            bookToGroup = book
+                                            isChoosingGroup = true
+                                        } label: {
+                                            Label("Add to Collection", systemImage: "folder.badge.plus")
+                                        }
+                                        Button(role: .destructive) {
+                                            libraryManager.removeBooks(withIDs: [book.id])
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.bottom, 60)
                         } else {
+                            // Cassette spine style
                             ScrollView {
                                 VStack(spacing: 10) {
                                     ForEach(libraryManager.sortedBooks) { book in
@@ -289,7 +365,7 @@ struct ContentView: View {
                 }
                 .environmentObject(playerManager)
                 .padding(.horizontal, 12)
-                .padding(.bottom, 56)
+                .padding(.bottom, 100)
             }
         }
     }
@@ -297,8 +373,13 @@ struct ContentView: View {
     // MARK: - Collections Tab
     private var collectionsTab: some View {
         ZStack(alignment: .bottom) {
-            GroupsView()
-                .environmentObject(libraryManager)
+            GroupsView(
+                miniPlayerTarget: $miniPlayerTarget,
+                isPushingFromMini: $isPushingFromMini
+            )
+            .environmentObject(libraryManager)
+            .environmentObject(playerManager)
+            .environmentObject(playerScreenTracker)
 
             if let currentID = playerManager.currentBookID,
                let current = libraryManager.books.first(where: { $0.id == currentID }),
@@ -310,7 +391,7 @@ struct ContentView: View {
                 }
                 .environmentObject(playerManager)
                 .padding(.horizontal, 12)
-                .padding(.bottom, 56)
+                .padding(.bottom, 100)
             }
         }
     }

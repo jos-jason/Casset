@@ -62,8 +62,14 @@ struct CollectionCoverGrid: View {
 
 struct GroupsView: View {
     @EnvironmentObject var libraryManager: LibraryManager
+    @EnvironmentObject var playerManager: AudioPlayerManager
+    @EnvironmentObject var playerScreenTracker: PlayerScreenTracker
     @State private var isCreatingGroup = false
     @State private var newGroupName = ""
+
+    // Mini player navigation (driven from outside or internally)
+    @Binding var miniPlayerTarget: Book?
+    @Binding var isPushingFromMini: Bool
     
     func actualBookCount(for group: BookGroup) -> Int {
         libraryManager.books.filter { group.bookIDs.contains($0.id) }.count
@@ -73,48 +79,68 @@ struct GroupsView: View {
         libraryManager.books.filter { group.bookIDs.contains($0.id) }
     }
 
+    @ViewBuilder
+    private func miniPlayerDestination() -> some View {
+        if let target = miniPlayerTarget {
+            PlayerView(book: target)
+                .environmentObject(libraryManager)
+                .environmentObject(playerManager)
+                .environmentObject(playerScreenTracker)
+        } else {
+            EmptyView()
+        }
+    }
+
     var body: some View {
         NavigationStack {
-            Group {
-                if libraryManager.groups.isEmpty {
-                    VStack(spacing: 16) {
-                        Image(systemName: "folder")
-                            .font(.system(size: 60))
-                            .foregroundStyle(.secondary)
-                        Text("No collections yet")
-                            .font(.title3)
-                            .foregroundStyle(.secondary)
-                        Text("Swipe right on a book in your library to add it to a collection.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 40)
-                    }
-                } else {
-                    List {
-                        ForEach(libraryManager.groups) { group in
-                            NavigationLink(
-                                destination: GroupDetailView(group: group)
-                                    .environmentObject(libraryManager)
-                            ) {
-                                let count = actualBookCount(for: group)
-                                HStack(spacing: 14) {
-                                    CollectionCoverGrid(
-                                        books: booksInGroup(group),
-                                        size: 56
-                                    )
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(group.name)
-                                            .font(.headline)
-                                        Text("\(count) book\(count == 1 ? "" : "s")")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                                .padding(.vertical, 4)
-                            }
+            VStack(spacing: 0) {
+                NavigationLink(
+                    destination: miniPlayerDestination(),
+                    isActive: $isPushingFromMini
+                ) { EmptyView() }
+                .hidden()
+
+                Group {
+                    if libraryManager.groups.isEmpty {
+                        VStack(spacing: 16) {
+                            Image(systemName: "folder")
+                                .font(.system(size: 60))
+                                .foregroundStyle(.secondary)
+                            Text("No collections yet")
+                                .font(.title3)
+                                .foregroundStyle(.secondary)
+                            Text("Swipe right on a book in your library to add it to a collection.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 40)
                         }
-                        .onDelete(perform: libraryManager.removeGroup)
+                    } else {
+                        List {
+                            ForEach(libraryManager.groups) { group in
+                                NavigationLink(
+                                    destination: GroupDetailView(group: group)
+                                        .environmentObject(libraryManager)
+                                ) {
+                                    let count = actualBookCount(for: group)
+                                    HStack(spacing: 14) {
+                                        CollectionCoverGrid(
+                                            books: booksInGroup(group),
+                                            size: 56
+                                        )
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(group.name)
+                                                .font(.headline)
+                                            Text("\(count) book\(count == 1 ? "" : "s")")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    .padding(.vertical, 4)
+                                }
+                            }
+                            .onDelete(perform: libraryManager.removeGroup)
+                        }
                     }
                 }
             }
