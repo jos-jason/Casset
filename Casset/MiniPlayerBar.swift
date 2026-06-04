@@ -7,7 +7,7 @@ struct MiniPlayerBar: View {
     @EnvironmentObject var playerManager: AudioPlayerManager
 
     var coverImage: UIImage? {
-        guard let artURL = book.artworkURL() else { return nil }
+        guard let artURL = book.bestCoverArtURL() else { return nil }
         return UIImage(contentsOfFile: artURL.path)
     }
 

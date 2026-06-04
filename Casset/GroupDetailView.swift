@@ -43,7 +43,7 @@ struct GroupDetailView: View {
                         ) {
                             HStack(spacing: 14) {
                                 Group {
-                                    if let artURL = book.artworkURL(),
+                                    if let artURL = book.bestCoverArtURL(),
                                        let uiImage = UIImage(contentsOfFile: artURL.path) {
                                         Image(uiImage: uiImage)
                                             .resizable()
@@ -148,7 +148,7 @@ struct AddBooksToGroupSheet: View {
                             } label: {
                                 HStack(spacing: 14) {
                                     Group {
-                                        if let artURL = book.artworkURL(),
+                                        if let artURL = book.bestCoverArtURL(),
                                            let uiImage = UIImage(contentsOfFile: artURL.path) {
                                             Image(uiImage: uiImage)
                                                 .resizable()

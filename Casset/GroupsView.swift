@@ -34,7 +34,7 @@ struct CollectionCoverGrid: View {
                 LazyVGrid(columns: columns, spacing: 2) {
                     ForEach(0..<4, id: \.self) { index in
                         if index < covers.count,
-                           let artURL = covers[index].artworkURL(),
+                           let artURL = covers[index].bestCoverArtURL(),
                            let uiImage = UIImage(contentsOfFile: artURL.path) {
                             Image(uiImage: uiImage)
                                 .resizable()

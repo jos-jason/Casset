@@ -230,7 +230,7 @@ class AudioPlayerManager: ObservableObject {
     
     // Helper to load artwork from book
     private func loadArtwork(for book: Book) -> UIImage? {
-        guard let artworkURL = book.artworkURL(),
+        guard let artworkURL = book.bestCoverArtURL(),
               let data = try? Data(contentsOf: artworkURL),
               let image = UIImage(data: data) else {
             return nil

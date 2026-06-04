@@ -73,11 +73,19 @@ class LibraryManager: ObservableObject {
     func removeBook(at offsets: IndexSet) {
         for index in offsets {
             let book = books[index]
+            let docsDir = FileManager.default
+                .urls(for: .documentDirectory, in: .userDomainMask)[0]
             if let filename = book.artworkFilename {
-                let url = FileManager.default
-                    .urls(for: .documentDirectory, in: .userDomainMask)[0]
-                    .appendingPathComponent(filename)
-                try? FileManager.default.removeItem(at: url)
+                try? FileManager.default.removeItem(at: docsDir.appendingPathComponent(filename))
+            }
+            if let filename = book.cassetteBoxArtFilename {
+                try? FileManager.default.removeItem(at: docsDir.appendingPathComponent(filename))
+            }
+            if let filename = book.customCoverArtFilename {
+                try? FileManager.default.removeItem(at: docsDir.appendingPathComponent(filename))
+            }
+            if let filename = book.customCassetteCoverArtFilename {
+                try? FileManager.default.removeItem(at: docsDir.appendingPathComponent(filename))
             }
             // Remove book ID from all groups
             for i in groups.indices {
@@ -91,12 +99,20 @@ class LibraryManager: ObservableObject {
 
     func removeBooks(withIDs ids: [UUID]) {
         let idSet = Set(ids)
+        let docsDir = FileManager.default
+            .urls(for: .documentDirectory, in: .userDomainMask)[0]
         for book in books where idSet.contains(book.id) {
             if let filename = book.artworkFilename {
-                let url = FileManager.default
-                    .urls(for: .documentDirectory, in: .userDomainMask)[0]
-                    .appendingPathComponent(filename)
-                try? FileManager.default.removeItem(at: url)
+                try? FileManager.default.removeItem(at: docsDir.appendingPathComponent(filename))
+            }
+            if let filename = book.cassetteBoxArtFilename {
+                try? FileManager.default.removeItem(at: docsDir.appendingPathComponent(filename))
+            }
+            if let filename = book.customCoverArtFilename {
+                try? FileManager.default.removeItem(at: docsDir.appendingPathComponent(filename))
+            }
+            if let filename = book.customCassetteCoverArtFilename {
+                try? FileManager.default.removeItem(at: docsDir.appendingPathComponent(filename))
             }
             for i in groups.indices {
                 groups[i].bookIDs.removeAll { $0 == book.id }
@@ -174,13 +190,96 @@ class LibraryManager: ObservableObject {
 
     // MARK: Book Details
 
-    func updateBookDetails(bookID: UUID, title: String, author: String, series: String, genre: String, customColorHex: String? = nil) {
+    func updateBookDetails(bookID: UUID, title: String, author: String, series: String, genre: String, customColorHex: String? = nil, boxArtPrompt: String = "") {
         guard let i = books.firstIndex(where: { $0.id == bookID }) else { return }
         books[i].title = title
         books[i].author = author
         books[i].series = series
         books[i].genre = genre
         books[i].customColorHex = customColorHex
+        books[i].boxArtPrompt = boxArtPrompt
+        save()
+    }
+
+    func saveCassetteBoxArt(bookID: UUID, image: UIImage) {
+        let filename = "boxart_\(bookID.uuidString).jpg"
+        let url = FileManager.default
+            .urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(filename)
+        if let data = image.jpegData(compressionQuality: 0.85) {
+            try? data.write(to: url)
+            if let i = books.firstIndex(where: { $0.id == bookID }) {
+                books[i].cassetteBoxArtFilename = filename
+                save()
+            }
+        }
+    }
+
+    func removeCassetteBoxArt(bookID: UUID) {
+        guard let i = books.firstIndex(where: { $0.id == bookID }) else { return }
+        if let filename = books[i].cassetteBoxArtFilename {
+            let url = FileManager.default
+                .urls(for: .documentDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent(filename)
+            try? FileManager.default.removeItem(at: url)
+        }
+        books[i].cassetteBoxArtFilename = nil
+        save()
+    }
+
+    // MARK: Custom Cover Art (Square 1:1)
+
+    func saveCustomCoverArt(bookID: UUID, image: UIImage) {
+        let filename = "cover_\(bookID.uuidString).jpg"
+        let url = FileManager.default
+            .urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(filename)
+        if let data = image.jpegData(compressionQuality: 0.85) {
+            try? data.write(to: url)
+            if let i = books.firstIndex(where: { $0.id == bookID }) {
+                books[i].customCoverArtFilename = filename
+                save()
+            }
+        }
+    }
+
+    func removeCustomCoverArt(bookID: UUID) {
+        guard let i = books.firstIndex(where: { $0.id == bookID }) else { return }
+        if let filename = books[i].customCoverArtFilename {
+            let url = FileManager.default
+                .urls(for: .documentDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent(filename)
+            try? FileManager.default.removeItem(at: url)
+        }
+        books[i].customCoverArtFilename = nil
+        save()
+    }
+
+    // MARK: Custom Cassette Cover Art (31:17)
+
+    func saveCustomCassetteCoverArt(bookID: UUID, image: UIImage) {
+        let filename = "cassettecover_\(bookID.uuidString).jpg"
+        let url = FileManager.default
+            .urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(filename)
+        if let data = image.jpegData(compressionQuality: 0.85) {
+            try? data.write(to: url)
+            if let i = books.firstIndex(where: { $0.id == bookID }) {
+                books[i].customCassetteCoverArtFilename = filename
+                save()
+            }
+        }
+    }
+
+    func removeCustomCassetteCoverArt(bookID: UUID) {
+        guard let i = books.firstIndex(where: { $0.id == bookID }) else { return }
+        if let filename = books[i].customCassetteCoverArtFilename {
+            let url = FileManager.default
+                .urls(for: .documentDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent(filename)
+            try? FileManager.default.removeItem(at: url)
+        }
+        books[i].customCassetteCoverArtFilename = nil
         save()
     }
 

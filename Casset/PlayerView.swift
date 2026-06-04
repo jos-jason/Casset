@@ -21,7 +21,7 @@ struct PlayerView: View {
     @AppStorage("showChapterTicker") var showChapterTicker: Bool = true
 
     var coverImage: UIImage? {
-        guard let artURL = book.artworkURL() else { return nil }
+        guard let artURL = book.bestCassetteCoverArtURL() else { return nil }
         return UIImage(contentsOfFile: artURL.path)
     }
 

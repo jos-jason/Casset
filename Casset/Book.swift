@@ -13,6 +13,10 @@ struct Book: Identifiable, Codable {
     var genre: String = ""
     var artworkFilename: String? = nil
     var customColorHex: String? = nil
+    var cassetteBoxArtFilename: String? = nil
+    var boxArtPrompt: String = ""
+    var customCoverArtFilename: String? = nil       // Square (1:1) cover art
+    var customCassetteCoverArtFilename: String? = nil // Cassette ratio (31:17) cover art
 
     // Per‑book bookmarks (backward‑compatible default)
     var bookmarks: [Bookmark] = []
@@ -32,5 +36,36 @@ struct Book: Identifiable, Codable {
         return FileManager.default
             .urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent(filename)
+    }
+
+    func cassetteBoxArtURL() -> URL? {
+        guard let filename = cassetteBoxArtFilename else { return nil }
+        return FileManager.default
+            .urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(filename)
+    }
+
+    func customCoverArtURL() -> URL? {
+        guard let filename = customCoverArtFilename else { return nil }
+        return FileManager.default
+            .urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(filename)
+    }
+
+    func customCassetteCoverArtURL() -> URL? {
+        guard let filename = customCassetteCoverArtFilename else { return nil }
+        return FileManager.default
+            .urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(filename)
+    }
+
+    /// Returns the best available cover image URL: custom square cover, then embedded artwork
+    func bestCoverArtURL() -> URL? {
+        customCoverArtURL() ?? artworkURL()
+    }
+
+    /// Returns the best available cassette cover URL: custom cassette cover, then square cover, then embedded
+    func bestCassetteCoverArtURL() -> URL? {
+        customCassetteCoverArtURL() ?? customCoverArtURL() ?? artworkURL()
     }
 }
