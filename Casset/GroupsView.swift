@@ -60,12 +60,93 @@ struct CollectionCoverGrid: View {
     }
 }
 
+// MARK: - Cassette-style Collection Row
+/// Mimics the CassetteSpineView look: black outer box, white borders, 3D depth lines,
+/// with the multi-image grid on the left and collection name + count on the right.
+struct CollectionCassetteRow: View {
+    let group: BookGroup
+    let books: [Book]
+    let bookCount: Int
+
+    private let lineColor = Color.white
+    private let lineWidth: CGFloat = 1.2
+
+    var body: some View {
+        let innerBox = HStack(spacing: 0) {
+            // Cover grid on the left, sized to fill height
+            CollectionCoverGrid(books: books, size: 62)
+                .frame(maxHeight: .infinity)
+
+            // Divider
+            lineColor.opacity(0.6)
+                .frame(width: lineWidth, height: 34)
+                .padding(.leading, 8)
+
+            // Title + count
+            VStack(alignment: .leading, spacing: 4) {
+                Text(group.name)
+                    .font(.system(size: 18, weight: .bold))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.75)
+                    .foregroundStyle(lineColor)
+                Text("\(bookCount) book\(bookCount == 1 ? "" : "s")")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(lineColor.opacity(0.7))
+            }
+            .padding(.leading, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 62)
+        .clipShape(Rectangle())
+        .overlay(
+            Rectangle()
+                .strokeBorder(lineColor.opacity(0.5), lineWidth: lineWidth)
+        )
+
+        // Outer cassette box
+        innerBox
+            .padding(12)
+            .background(Color.black)
+            .overlay(
+                GeometryReader { geo in
+                    let inset: CGFloat = 12
+                    let lineLen: CGFloat = 8
+                    let opacity: Double = 0.35
+                    Path { p in
+                        p.move(to: CGPoint(x: 0, y: 0))
+                        p.addLine(to: CGPoint(x: lineLen, y: -lineLen))
+                        p.move(to: CGPoint(x: geo.size.width, y: 0))
+                        p.addLine(to: CGPoint(x: geo.size.width + lineLen, y: -lineLen))
+                        p.move(to: CGPoint(x: inset, y: inset))
+                        p.addLine(to: CGPoint(x: inset + lineLen, y: inset - lineLen))
+                        p.move(to: CGPoint(x: geo.size.width - inset, y: inset))
+                        p.addLine(to: CGPoint(x: geo.size.width - inset + lineLen, y: inset - lineLen))
+                        p.move(to: CGPoint(x: 0, y: geo.size.height))
+                        p.addLine(to: CGPoint(x: lineLen, y: geo.size.height - lineLen))
+                        p.move(to: CGPoint(x: geo.size.width, y: geo.size.height))
+                        p.addLine(to: CGPoint(x: geo.size.width + lineLen, y: geo.size.height - lineLen))
+                        p.move(to: CGPoint(x: geo.size.width - inset, y: geo.size.height - inset))
+                        p.addLine(to: CGPoint(x: geo.size.width - inset + lineLen, y: geo.size.height - inset - lineLen))
+                    }
+                    .stroke(lineColor.opacity(opacity), lineWidth: 0.8)
+                }
+            )
+            .overlay(
+                Rectangle()
+                    .strokeBorder(lineColor.opacity(0.6), lineWidth: lineWidth)
+            )
+    }
+}
+
 struct GroupsView: View {
     @EnvironmentObject var libraryManager: LibraryManager
     @EnvironmentObject var playerManager: AudioPlayerManager
     @EnvironmentObject var playerScreenTracker: PlayerScreenTracker
     @State private var isCreatingGroup = false
     @State private var newGroupName = ""
+
+    @AppStorage("useSimpleLibrary") var useSimpleLibrary: Bool = false
 
     // Mini player navigation (driven from outside or internally)
     @Binding var miniPlayerTarget: Book?
@@ -115,7 +196,7 @@ struct GroupsView: View {
                                 .multilineTextAlignment(.center)
                                 .padding(.horizontal, 40)
                         }
-                    } else {
+                    } else if useSimpleLibrary {
                         List {
                             ForEach(libraryManager.groups) { group in
                                 NavigationLink(
@@ -141,6 +222,28 @@ struct GroupsView: View {
                             }
                             .onDelete(perform: libraryManager.removeGroup)
                         }
+                    } else {
+                        // Cassette-style collection rows
+                        ScrollView {
+                            VStack(spacing: 10) {
+                                ForEach(libraryManager.groups) { group in
+                                    NavigationLink(
+                                        destination: GroupDetailView(group: group)
+                                            .environmentObject(libraryManager)
+                                    ) {
+                                        CollectionCassetteRow(
+                                            group: group,
+                                            books: booksInGroup(group),
+                                            bookCount: actualBookCount(for: group)
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(12)
+                            .padding(.bottom, 80)
+                        }
+                        .padding(.horizontal, 8)
                     }
                 }
             }

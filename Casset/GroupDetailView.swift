@@ -6,6 +6,8 @@ struct GroupDetailView: View {
     @EnvironmentObject var playerManager: AudioPlayerManager
     @State private var showingAddBooks = false
 
+    @AppStorage("useSimpleLibrary") var useSimpleLibrary: Bool = false
+
     var booksInGroup: [Book] {
         libraryManager.books.filter { group.bookIDs.contains($0.id) }
     }
@@ -33,7 +35,7 @@ struct GroupDetailView: View {
                     .tint(.primary)
                     .disabled(booksNotInGroup.isEmpty)
                 }
-            } else {
+            } else if useSimpleLibrary {
                 List {
                     ForEach(booksInGroup) { book in
                         NavigationLink(
@@ -84,6 +86,32 @@ struct GroupDetailView: View {
                         }
                     }
                 }
+            } else {
+                // Cassette spine style
+                ScrollView {
+                    VStack(spacing: 10) {
+                        ForEach(booksInGroup) { book in
+                            NavigationLink(
+                                destination: PlayerView(book: book)
+                                    .environmentObject(libraryManager)
+                                    .environmentObject(playerManager)
+                            ) {
+                                CassetteSpineView(book: book) {
+                                    if let url = book.resolvedURL() {
+                                        playerManager.load(url: url, bookID: book.id)
+                                        if !playerManager.isPlaying {
+                                            playerManager.togglePlayPause()
+                                        }
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(12)
+                    .padding(.bottom, 80)
+                }
+                .padding(.horizontal, 8)
             }
         }
         .navigationTitle(group.name)
