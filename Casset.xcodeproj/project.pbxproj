@@ -7,16 +7,16 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		289CF8592F5D0AAD004942D9 /* Casset.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Casset.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		289CF8592F5D0AAD004942D9 /* Cassette - Audiobook Player.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Cassette - Audiobook Player.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		284E69CA2F6231C200C6E901 /* Exceptions for "Casset" folder in "Casset" target */ = {
+		284E69CA2F6231C200C6E901 /* Exceptions for "Casset" folder in "Cassette - Audiobook Player" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 289CF8582F5D0AAD004942D9 /* Casset */;
+			target = 289CF8582F5D0AAD004942D9 /* Cassette - Audiobook Player */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -24,7 +24,7 @@
 		289CF85B2F5D0AAD004942D9 /* Casset */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				284E69CA2F6231C200C6E901 /* Exceptions for "Casset" folder in "Casset" target */,
+				284E69CA2F6231C200C6E901 /* Exceptions for "Casset" folder in "Cassette - Audiobook Player" target */,
 			);
 			path = Casset;
 			sourceTree = "<group>";
@@ -53,7 +53,7 @@
 		289CF85A2F5D0AAD004942D9 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				289CF8592F5D0AAD004942D9 /* Casset.app */,
+				289CF8592F5D0AAD004942D9 /* Cassette - Audiobook Player.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -61,9 +61,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		289CF8582F5D0AAD004942D9 /* Casset */ = {
+		289CF8582F5D0AAD004942D9 /* Cassette - Audiobook Player */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 289CF8642F5D0AAE004942D9 /* Build configuration list for PBXNativeTarget "Casset" */;
+			buildConfigurationList = 289CF8642F5D0AAE004942D9 /* Build configuration list for PBXNativeTarget "Cassette - Audiobook Player" */;
 			buildPhases = (
 				289CF8552F5D0AAD004942D9 /* Sources */,
 				289CF8562F5D0AAD004942D9 /* Frameworks */,
@@ -76,11 +76,11 @@
 			fileSystemSynchronizedGroups = (
 				289CF85B2F5D0AAD004942D9 /* Casset */,
 			);
-			name = Casset;
+			name = "Cassette - Audiobook Player";
 			packageProductDependencies = (
 			);
 			productName = Casset;
-			productReference = 289CF8592F5D0AAD004942D9 /* Casset.app */;
+			productReference = 289CF8592F5D0AAD004942D9 /* Cassette - Audiobook Player.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -112,7 +112,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				289CF8582F5D0AAD004942D9 /* Casset */,
+				289CF8582F5D0AAD004942D9 /* Cassette - Audiobook Player */,
 			);
 		};
 /* End PBXProject section */
@@ -268,6 +268,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Casset/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Cassette - Audiobook Player";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.books";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -301,6 +303,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Casset/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Cassette - Audiobook Player";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.books";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -335,7 +339,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		289CF8642F5D0AAE004942D9 /* Build configuration list for PBXNativeTarget "Casset" */ = {
+		289CF8642F5D0AAE004942D9 /* Build configuration list for PBXNativeTarget "Cassette - Audiobook Player" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				289CF8652F5D0AAE004942D9 /* Debug */,

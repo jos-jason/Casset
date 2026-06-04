@@ -22,6 +22,9 @@ struct ContentView: View {
     @State private var miniPlayerTarget: Book? = nil
     @State private var isPushingFromMini: Bool = false
 
+    // For editing book details
+    @State private var bookToEdit: Book? = nil
+
     var body: some View {
         TabView {
 
@@ -52,66 +55,50 @@ struct ContentView: View {
                                         .buttonStyle(.borderedProminent)
                                 }
                             } else {
-                                List {
-                                    ForEach(libraryManager.sortedBooks) { book in
-                                        NavigationLink(
-                                            destination: PlayerView(book: book)
-                                                .environmentObject(libraryManager)
-                                                .environmentObject(playerManager)
-                                                .environmentObject(playerScreenTracker)
-                                        ) {
-                                            HStack(spacing: 14) {
-                                                Group {
-                                                    if let artURL = book.artworkURL(),
-                                                       let uiImage = UIImage(contentsOfFile: artURL.path) {
-                                                        Image(uiImage: uiImage)
-                                                            .resizable()
-                                                            .scaledToFill()
-                                                    } else {
-                                                        Image(systemName: "book.closed.fill")
-                                                            .font(.system(size: 28))
-                                                            .foregroundStyle(.secondary)
+                                ScrollView {
+                                    VStack(spacing: 10) {
+                                        ForEach(libraryManager.sortedBooks) { book in
+                                            NavigationLink(
+                                                destination: PlayerView(book: book)
+                                                    .environmentObject(libraryManager)
+                                                    .environmentObject(playerManager)
+                                                    .environmentObject(playerScreenTracker)
+                                            ) {
+                                                CassetteSpineView(book: book) {
+                                                    // Play button: load and play the book
+                                                    if let url = book.resolvedURL() {
+                                                        playerManager.load(url: url, bookID: book.id)
+                                                        if !playerManager.isPlaying {
+                                                            playerManager.togglePlayPause()
+                                                        }
                                                     }
                                                 }
-                                                .frame(width: 56, height: 56)
-                                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                                .background(
-                                                    RoundedRectangle(cornerRadius: 8)
-                                                        .fill(Color.secondary.opacity(0.15))
-                                                )
-
-                                                VStack(alignment: .leading, spacing: 4) {
-                                                    Text(book.title)
-                                                        .font(.headline)
-                                                    if book.lastPosition > 0 {
-                                                        Text("Last played: \(formatTime(book.lastPosition))")
-                                                            .font(.caption)
-                                                            .foregroundStyle(.secondary)
-                                                    } else {
-                                                        Text("Not started")
-                                                            .font(.caption)
-                                                            .foregroundStyle(.secondary)
-                                                    }
+                                            }
+                                            .buttonStyle(.plain)
+                                            .contextMenu {
+                                                Button {
+                                                    bookToEdit = book
+                                                } label: {
+                                                    Label("Edit Book Info", systemImage: "pencil")
                                                 }
-                                                .padding(.vertical, 4)
+                                                Button {
+                                                    bookToGroup = book
+                                                    isChoosingGroup = true
+                                                } label: {
+                                                    Label("Add to Collection", systemImage: "folder.badge.plus")
+                                                }
+                                                Button(role: .destructive) {
+                                                    libraryManager.removeBooks(withIDs: [book.id])
+                                                } label: {
+                                                    Label("Delete", systemImage: "trash")
+                                                }
                                             }
                                         }
-                                        .swipeActions(edge: .leading) {
-                                            Button {
-                                                bookToGroup = book
-                                                isChoosingGroup = true
-                                            } label: {
-                                                Label("Add to Collection", systemImage: "folder.badge.plus")
-                                            }
-                                            .tint(.yellow)
-                                        }
                                     }
-                                    .onDelete { offsets in
-                                        let sorted = libraryManager.sortedBooks
-                                        let idsToRemove = offsets.map { sorted[$0].id }
-                                        libraryManager.removeBooks(withIDs: idsToRemove)
-                                    }
+                                    .padding(12)
                                 }
+                                .padding(.horizontal, 8)
+                                .padding(.bottom, 80)
                             }
                         }
                     }
@@ -153,9 +140,7 @@ struct ContentView: View {
                                 Image(systemName: "plus")
                             }
                         }
-                        ToolbarItem(placement: .topBarLeading) {
-                            EditButton()
-                        }
+                        
                     }
                     .fileImporter(
                         isPresented: $showingImporter,
@@ -223,6 +208,10 @@ struct ContentView: View {
                         }
                         Button("Cancel", role: .cancel) { newGroupName = "" }
                     }
+                    .sheet(item: $bookToEdit) { book in
+                        BookEditView(book: book)
+                            .environmentObject(libraryManager)
+                    }
                 }
 
                 // Mini player overlay (hidden when full PlayerView is visible)
@@ -285,5 +274,12 @@ struct ContentView: View {
         let s = Int(seconds) % 60
         return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
     }
+}
+
+#Preview {
+    ContentView()
+        .environmentObject(LibraryManager())
+        .environmentObject(AudioPlayerManager())
+        .environmentObject(PlayerScreenTracker())
 }
 

@@ -4,6 +4,7 @@ struct CassetteSpineView: View {
     let book: Book
     let onPlay: () -> Void
 
+    @AppStorage("colorIntensity") private var colorIntensity: Double = 0.5
     @State private var coverColors: CoverColors = ColorExtractor.defaultColors
 
     private var coverImage: UIImage? {
@@ -11,9 +12,41 @@ struct CassetteSpineView: View {
         return UIImage(contentsOfFile: artURL.path)
     }
 
+    private var titleSize: CGFloat {
+        let length = book.title.count
+        if length > 60 { return 15 }
+        if length > 40 { return 17 }
+        return 20
+    }
+
+    private let lineColor = Color.white
+    private let lineWidth: CGFloat = 1.2
+
+    private var authorNameParts: [String] {
+        let parts = book.author.split(separator: " ", maxSplits: 1).map(String.init)
+        return parts.isEmpty ? [book.author] : parts
+    }
+
+    private var boxBackground: Color {
+        if let hex = book.customColorHex, let color = Self.color(from: hex) {
+            return color
+        }
+        return coverColors.background
+    }
+
+    private static func color(from hex: String) -> Color? {
+        let cleaned = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        guard cleaned.count == 6, let value = UInt64(cleaned, radix: 16) else { return nil }
+        let r = Double((value >> 16) & 0xFF) / 255.0
+        let g = Double((value >> 8) & 0xFF) / 255.0
+        let b = Double(value & 0xFF) / 255.0
+        return Color(red: r, green: g, blue: b)
+    }
+
     var body: some View {
-        HStack(spacing: 0) {
-            // Left end: small cover art
+        // Inner cassette box: cover art | colored area with title/author/play | stripe
+        let innerBox = HStack(spacing: 0) {
+            // Cover art — inset with background-color border
             Group {
                 if let uiImage = coverImage {
                     Image(uiImage: uiImage)
@@ -21,61 +54,129 @@ struct CassetteSpineView: View {
                         .scaledToFill()
                 } else {
                     Image(systemName: "book.closed.fill")
-                        .font(.system(size: 20))
-                        .foregroundStyle(coverColors.text.opacity(0.6))
+                        .font(.system(size: 24))
+                        .foregroundStyle(lineColor.opacity(0.5))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .frame(width: 52, height: 52)
-            .clipShape(RoundedRectangle(cornerRadius: 4))
-            .padding(.leading, 6)
+            .frame(width: 74)
+            .clipped()
+            .padding(8)
+            .background(boxBackground)
 
-            // Spine label area: title + author
-            VStack(alignment: .leading, spacing: 2) {
+            // Colored middle: title, divider, author, play
+            HStack(spacing: 0) {
+                // Big title
                 Text(book.title)
-                    .font(.system(size: 15, weight: .bold))
-                    .lineLimit(1)
-                    .foregroundStyle(coverColors.text)
+                    .font(.system(size: titleSize, weight: .bold))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.75)
+                    .foregroundStyle(lineColor)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 12)
+                    .padding(.trailing, 8)
 
-                if !book.author.isEmpty {
-                    Text(book.author)
-                        .font(.system(size: 12, weight: .medium))
-                        .lineLimit(1)
-                        .foregroundStyle(coverColors.text.opacity(0.7))
+                // Short divider
+                lineColor.opacity(0.6)
+                    .frame(width: lineWidth, height: 34)
+
+                // Author + play button
+                ZStack {
+                    // Author name centered in the section
+                    if !book.author.isEmpty {
+                        VStack(alignment: .leading, spacing: 1) {
+                            ForEach(authorNameParts, id: \.self) { part in
+                                Text(part)
+                                    .font(.system(size: 10, weight: .medium))
+                                    .lineLimit(1)
+                                    .foregroundStyle(lineColor.opacity(0.8))
+                            }
+                        }
+                    }
+
+                    // Play button aligned to trailing edge
+                    HStack {
+                        Spacer()
+                        Button {
+                            onPlay()
+                        } label: {
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 11))
+                                .foregroundStyle(lineColor)
+                                .frame(width: 28, height: 28)
+                                .background(
+                                    Circle()
+                                        .strokeBorder(lineColor.opacity(0.8), lineWidth: lineWidth)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.leading, 8)
+                .padding(.trailing, 10)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(boxBackground)
+
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipShape(Rectangle())
+        .overlay(
+            Rectangle()
+                .strokeBorder(lineColor.opacity(0.5), lineWidth: lineWidth)
+        )
+
+        // Outer box: black background with white border, inner box inset
+        innerBox
+            .padding(12)
+            .frame(minHeight: 74)
+            .background(Color.black)
+            .overlay(
+                // 3D depth line from inner box top-left corner, diagonally up-right
+                GeometryReader { geo in
+                    let inset: CGFloat = 12
+                    let lineLen: CGFloat = 8
+                    let opacity: Double = 0.35
+                    Path { p in
+                        // Top-left corner of outer box
+                        p.move(to: CGPoint(x: 0, y: 0))
+                        p.addLine(to: CGPoint(x: lineLen, y: -lineLen))
+                        // Top-right corner of outer box
+                        p.move(to: CGPoint(x: geo.size.width, y: 0))
+                        p.addLine(to: CGPoint(x: geo.size.width + lineLen, y: -lineLen))
+                        // Top-left corner of inner box
+                        p.move(to: CGPoint(x: inset, y: inset))
+                        p.addLine(to: CGPoint(x: inset + lineLen, y: inset - lineLen))
+                        // Top-right corner of inner box
+                        p.move(to: CGPoint(x: geo.size.width - inset, y: inset))
+                        p.addLine(to: CGPoint(x: geo.size.width - inset + lineLen, y: inset - lineLen))
+                        // Bottom-left corner of outer box
+                        p.move(to: CGPoint(x: 0, y: geo.size.height))
+                        p.addLine(to: CGPoint(x: lineLen, y: geo.size.height - lineLen))
+                        // Bottom-right corner of outer box
+                        p.move(to: CGPoint(x: geo.size.width, y: geo.size.height))
+                        p.addLine(to: CGPoint(x: geo.size.width + lineLen, y: geo.size.height - lineLen))
+                        // Bottom-right corner of inner box
+                        p.move(to: CGPoint(x: geo.size.width - inset, y: geo.size.height - inset))
+                        p.addLine(to: CGPoint(x: geo.size.width - inset + lineLen, y: geo.size.height - inset - lineLen))
+                    }
+                    .stroke(lineColor.opacity(opacity), lineWidth: 0.8)
+                }
+            )
+            .overlay(
+                Rectangle()
+                    .strokeBorder(lineColor.opacity(0.6), lineWidth: lineWidth)
+            )
+            .onAppear {
+                if let img = coverImage {
+                    coverColors = ColorExtractor.extractColors(from: img, intensity: colorIntensity)
                 }
             }
-            .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            // Right end: play button
-            Button {
-                onPlay()
-            } label: {
-                Image(systemName: "play.fill")
-                    .font(.system(size: 14))
-                    .foregroundStyle(coverColors.text)
-                    .frame(width: 32, height: 32)
-                    .background(
-                        Circle()
-                            .strokeBorder(coverColors.text.opacity(0.5), lineWidth: 1.5)
-                    )
+            .onChange(of: colorIntensity) {
+                if let img = coverImage {
+                    coverColors = ColorExtractor.extractColors(from: img, intensity: colorIntensity)
+                }
             }
-            .buttonStyle(.plain)
-            .padding(.trailing, 10)
-        }
-        .frame(height: 64)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(coverColors.background)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .strokeBorder(coverColors.text.opacity(0.15), lineWidth: 0.5)
-        )
-        .onAppear {
-            if let img = coverImage {
-                coverColors = ColorExtractor.extractColors(from: img)
-            }
-        }
     }
 }

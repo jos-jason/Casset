@@ -10,7 +10,9 @@ struct Book: Identifiable, Codable {
     var lastPosition: Double = 0
     var dateAdded: Date = Date()
     var lastInteracted: Date = Date()  // Tracks most recent interaction (added or played)
+    var genre: String = ""
     var artworkFilename: String? = nil
+    var customColorHex: String? = nil
 
     // Per‑book bookmarks (backward‑compatible default)
     var bookmarks: [Bookmark] = []

@@ -57,11 +57,15 @@ class LibraryManager: ObservableObject {
 
         Task {
             defer { url.stopAccessingSecurityScopedResource() }
-            if let artworkFilename = await extractArtwork(from: url, bookID: book.id) {
-                if let i = books.firstIndex(where: { $0.id == book.id }) {
-                    books[i].artworkFilename = artworkFilename
-                    save()
+            let metadata = await extractMetadata(from: url, bookID: book.id)
+            if let i = books.firstIndex(where: { $0.id == book.id }) {
+                if let artwork = metadata.artworkFilename {
+                    books[i].artworkFilename = artwork
                 }
+                if !metadata.genre.isEmpty {
+                    books[i].genre = metadata.genre
+                }
+                save()
             }
         }
     }
@@ -168,25 +172,52 @@ class LibraryManager: ObservableObject {
         save()
     }
 
-    // MARK: Artwork
+    // MARK: Book Details
 
-    private func extractArtwork(from url: URL, bookID: UUID) async -> String? {
+    func updateBookDetails(bookID: UUID, title: String, author: String, series: String, genre: String, customColorHex: String? = nil) {
+        guard let i = books.firstIndex(where: { $0.id == bookID }) else { return }
+        books[i].title = title
+        books[i].author = author
+        books[i].series = series
+        books[i].genre = genre
+        books[i].customColorHex = customColorHex
+        save()
+    }
+
+    // MARK: Metadata Extraction
+
+    private struct ExtractedMetadata {
+        var artworkFilename: String?
+        var genre: String = ""
+    }
+
+    private func extractMetadata(from url: URL, bookID: UUID) async -> ExtractedMetadata {
         let asset = AVAsset(url: url)
-        guard let metadata = try? await asset.load(.metadata) else { return nil }
+        guard let metadata = try? await asset.load(.metadata) else { return ExtractedMetadata() }
+
+        var result = ExtractedMetadata()
 
         for item in metadata {
-            guard item.commonKey == .commonKeyArtwork,
-                  let data = try? await item.load(.dataValue)
-            else { continue }
+            // Extract artwork
+            if item.commonKey == .commonKeyArtwork,
+               let data = try? await item.load(.dataValue) {
+                let filename = "\(bookID.uuidString).jpg"
+                let fileURL  = FileManager.default
+                    .urls(for: .documentDirectory, in: .userDomainMask)[0]
+                    .appendingPathComponent(filename)
+                try? data.write(to: fileURL)
+                result.artworkFilename = filename
+            }
 
-            let filename = "\(bookID.uuidString).jpg"
-            let fileURL  = FileManager.default
-                .urls(for: .documentDirectory, in: .userDomainMask)[0]
-                .appendingPathComponent(filename)
-            try? data.write(to: fileURL)
-            return filename
+            // Extract genre
+            if item.commonKey == .commonKeyType,
+               let genre = try? await item.load(.stringValue),
+               !genre.isEmpty {
+                result.genre = genre
+            }
         }
-        return nil
+
+        return result
     }
 
     // MARK: Persistence

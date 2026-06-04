@@ -4,18 +4,19 @@ import UIKit
 struct CoverColors {
     let background: Color
     let text: Color
+    let accent: Color
 }
 
 enum ColorExtractor {
-    /// Extracts two distinct colors from an image: one for background (more muted/dark),
-    /// one for text (contrasting). Falls back to defaults if extraction fails.
-    static func extractColors(from image: UIImage) -> CoverColors {
+    /// Extracts colors from an image. `intensity` (0–1) shifts the dominant color
+    /// darker (0) or brighter (1), with 0.5 using the color as-is.
+    static func extractColors(from image: UIImage, intensity: Double = 0.5) -> CoverColors {
         guard let cgImage = image.cgImage else {
             return defaultColors
         }
 
-        let width = 20
-        let height = 20
+        let width = 30
+        let height = 30
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let bytesPerPixel = 4
         let bytesPerRow = bytesPerPixel * width
@@ -51,20 +52,17 @@ enum ColorExtractor {
                 var bri: CGFloat = 0
                 uiColor.getHue(&hue, saturation: &sat, brightness: &bri, alpha: nil)
 
-                // Skip very dark or very light pixels (not interesting)
-                if bri < 0.05 || (sat < 0.05 && bri > 0.9) { continue }
+                // Skip only truly black or pure white pixels
+                if bri < 0.02 { continue }
+                if sat < 0.03 && bri > 0.95 { continue }
 
-                // Try to bucket into existing color
+                // Try to bucket into existing color (don't average — keep the original color)
                 var found = false
                 for i in colorBuckets.indices {
                     let dh = min(abs(colorBuckets[i].h - hue), 1 - abs(colorBuckets[i].h - hue))
                     let ds = abs(colorBuckets[i].s - sat)
                     let db = abs(colorBuckets[i].b - bri)
                     if dh < 0.08 && ds < 0.25 && db < 0.25 {
-                        let c = CGFloat(colorBuckets[i].count)
-                        colorBuckets[i].h = (colorBuckets[i].h * c + hue) / (c + 1)
-                        colorBuckets[i].s = (colorBuckets[i].s * c + sat) / (c + 1)
-                        colorBuckets[i].b = (colorBuckets[i].b * c + bri) / (c + 1)
                         colorBuckets[i].count += 1
                         found = true
                         break
@@ -81,45 +79,51 @@ enum ColorExtractor {
 
         guard !colorBuckets.isEmpty else { return defaultColors }
 
-        // Pick the most dominant color for background, darkened/muted
+        // Use the most dominant color, shifted by intensity preference
         let bg = colorBuckets[0]
+        // intensity 0 = darker (multiply brightness by 0.4), 0.5 = as-is, 1 = brighter (push toward 1.0)
+        let baseBri = Double(bg.b)
+        let adjustedBri: Double
+        if intensity <= 0.5 {
+            // 0→0.5 maps to 0.4×...1.0× of the original brightness
+            let factor = 0.4 + (intensity / 0.5) * 0.6
+            adjustedBri = baseBri * factor
+        } else {
+            // 0.5→1.0 lerps brightness from original toward 1.0
+            let t = (intensity - 0.5) / 0.5
+            adjustedBri = baseBri + (1.0 - baseBri) * t * 0.6
+        }
         let backgroundColor = Color(
             hue: Double(bg.h),
-            saturation: Double(min(bg.s * 0.7, 0.5)),
-            brightness: Double(min(bg.b * 0.35, 0.3))
+            saturation: Double(bg.s),
+            brightness: min(adjustedBri, 1.0)
         )
 
-        // Pick a contrasting color for text — try a different bucket, or lighten the first
-        var textColor: Color
-        if colorBuckets.count > 1 {
-            // Find a bucket that's sufficiently different from background
-            var chosen = colorBuckets[1]
-            for bucket in colorBuckets.dropFirst() {
-                let dh = min(abs(bucket.h - bg.h), 1 - abs(bucket.h - bg.h))
-                if dh > 0.05 || abs(bucket.b - bg.b) > 0.2 {
-                    chosen = bucket
-                    break
-                }
-            }
-            textColor = Color(
-                hue: Double(chosen.h),
-                saturation: Double(max(chosen.s * 0.8, 0.15)),
-                brightness: Double(max(chosen.b, 0.75))
+        // Derive accent stripe from the same color, shifted opposite direction
+        let accentColor: Color
+        if adjustedBri > 0.6 {
+            accentColor = Color(
+                hue: Double(bg.h),
+                saturation: Double(min(bg.s + 0.15, 1.0)),
+                brightness: adjustedBri * 0.65
             )
         } else {
-            // Only one color cluster — make a bright version for text
-            textColor = Color(
+            accentColor = Color(
                 hue: Double(bg.h),
-                saturation: Double(max(bg.s * 0.5, 0.1)),
-                brightness: 0.85
+                saturation: Double(bg.s * 0.6),
+                brightness: min(adjustedBri + 0.3, 1.0)
             )
         }
 
-        return CoverColors(background: backgroundColor, text: textColor)
+        // White text for contrast (the sketch lines are also white)
+        let textColor = Color.white
+
+        return CoverColors(background: backgroundColor, text: textColor, accent: accentColor)
     }
 
     static let defaultColors = CoverColors(
         background: Color(white: 0.18),
-        text: Color(white: 0.85)
+        text: Color(white: 0.85),
+        accent: Color(white: 0.5)
     )
 }

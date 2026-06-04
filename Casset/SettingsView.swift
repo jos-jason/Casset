@@ -29,6 +29,7 @@ struct SettingsView: View {
     @AppStorage("showChapterTicker")   var showChapterTicker:   Bool   = true
     @AppStorage("cassetteMode")        var cassetteModeRaw:     String = CassetteMode.classic.rawValue
     @AppStorage("appAppearance")       var appAppearanceRaw:    String = AppAppearance.system.rawValue
+    @AppStorage("colorIntensity")      var colorIntensity:      Double = 0.5
     
     @EnvironmentObject var playerManager: AudioPlayerManager
 
@@ -114,6 +115,19 @@ struct SettingsView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Cassette Color Intensity")
+                        HStack {
+                            Text("Darker")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Slider(value: $colorIntensity, in: 0...1)
+                            Text("Brighter")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 } header: {
                     Text("Appearance")
                 } footer: {
