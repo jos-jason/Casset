@@ -138,7 +138,7 @@ struct CassetteSpineView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 62)
+        .aspectRatio(5.5, contentMode: .fit)
         .clipShape(Rectangle())
         .overlay(
             Rectangle()

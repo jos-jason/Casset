@@ -29,6 +29,7 @@ struct ContentView: View {
 
     // Search
     @State private var searchText: String = ""
+    @State private var isSearching: Bool = false
 
     @State private var selectedTab: Int = 0
 
@@ -256,8 +257,18 @@ struct ContentView: View {
                     }
                 }
                 .navigationTitle("Library")
-                .searchable(text: $searchText, prompt: "Search by title or author")
+                .searchable(text: $searchText, isPresented: $isSearching, prompt: "Search by title or author")
+                .onChange(of: isSearching) { _, active in
+                    if !active { searchText = "" }
+                }
                 .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            isSearching.toggle()
+                        } label: {
+                            Image(systemName: "magnifyingglass")
+                        }
+                    }
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
                             ForEach(BookSortOption.allCases, id: \.self) { option in

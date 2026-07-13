@@ -72,9 +72,10 @@ struct CollectionCassetteRow: View {
     private let lineWidth: CGFloat = 1.2
 
     var body: some View {
-        let innerBox = HStack(spacing: 0) {
+        let innerBox = GeometryReader { geo in
+            HStack(spacing: 0) {
             // Cover grid on the left, sized to fill height
-            CollectionCoverGrid(books: books, size: 62)
+            CollectionCoverGrid(books: books, size: geo.size.height)
                 .frame(maxHeight: .infinity)
 
             // Divider
@@ -96,8 +97,9 @@ struct CollectionCassetteRow: View {
             .padding(.leading, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: 62)
+        .frame(maxWidth: geo.size.width, maxHeight: geo.size.height)
+        }
+        .aspectRatio(5.5, contentMode: .fit)
         .clipShape(Rectangle())
         .overlay(
             Rectangle()
