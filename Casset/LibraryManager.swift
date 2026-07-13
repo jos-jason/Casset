@@ -37,6 +37,7 @@ class LibraryManager: ObservableObject {
         loadGroups()
         loadSortPreference()
         cleanupOrphanedBookIDs()
+        syncAutoCollections()
     }
 
     func addBook(from url: URL) {
@@ -95,6 +96,7 @@ class LibraryManager: ObservableObject {
         books.remove(atOffsets: offsets)
         save()
         saveGroups()
+        syncAutoCollections()
     }
 
     func removeBooks(withIDs ids: [UUID]) {
@@ -121,6 +123,7 @@ class LibraryManager: ObservableObject {
         books.removeAll { idSet.contains($0.id) }
         save()
         saveGroups()
+        syncAutoCollections()
     }
     
     /// Cleans up orphaned book IDs from all groups (books that no longer exist in the library)
@@ -167,6 +170,66 @@ class LibraryManager: ObservableObject {
         saveGroups()
     }
 
+    // MARK: Auto Collections (Series & Author)
+
+    /// Syncs both auto-series and auto-author collections.
+    func syncAutoCollections() {
+        var changed = false
+        changed = syncAutoGroups(type: .series, keyPath: \.series) || changed
+        changed = syncAutoGroups(type: .author, keyPath: \.author) || changed
+        if changed { saveGroups() }
+    }
+
+    /// Generic helper: syncs auto-generated groups for a given `AutoGroupType`.
+    /// Returns `true` if any group was created, updated, or removed.
+    private func syncAutoGroups(type: AutoGroupType, keyPath: KeyPath<Book, String>) -> Bool {
+        // Build a map of tag value → [book IDs]
+        var tagMap: [String: [UUID]] = [:]
+        for book in books {
+            let key = book[keyPath: keyPath].trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !key.isEmpty else { continue }
+            tagMap[key, default: []].append(book.id)
+        }
+
+        var changed = false
+
+        for (tagName, bookIDs) in tagMap {
+            if bookIDs.count < 2 {
+                // Fewer than 2 books — remove the auto group if one exists
+                if let idx = groups.firstIndex(where: { $0.autoGroupType == type && $0.name == tagName }) {
+                    groups.remove(at: idx)
+                    changed = true
+                }
+                continue
+            }
+
+            let sorted = bookIDs.sorted { a, b in
+                let titleA = books.first(where: { $0.id == a })?.title ?? ""
+                let titleB = books.first(where: { $0.id == b })?.title ?? ""
+                return titleA.localizedCaseInsensitiveCompare(titleB) == .orderedAscending
+            }
+
+            if let idx = groups.firstIndex(where: { $0.autoGroupType == type && $0.name == tagName }) {
+                if groups[idx].bookIDs != sorted {
+                    groups[idx].bookIDs = sorted
+                    changed = true
+                }
+            } else {
+                let group = BookGroup(name: tagName, bookIDs: sorted, autoGroupType: type)
+                groups.append(group)
+                changed = true
+            }
+        }
+
+        // Remove auto groups whose tag no longer appears in any book
+        let activeNames = Set(tagMap.keys)
+        let before = groups.count
+        groups.removeAll { $0.autoGroupType == type && !activeNames.contains($0.name) }
+        if groups.count != before { changed = true }
+
+        return changed
+    }
+
     // MARK: Playback info
 
     func updateLastPosition(bookID: UUID, position: Double) {
@@ -199,6 +262,7 @@ class LibraryManager: ObservableObject {
         books[i].customColorHex = customColorHex
         books[i].boxArtPrompt = boxArtPrompt
         save()
+        syncAutoCollections()
     }
 
     func saveCassetteBoxArt(bookID: UUID, image: UIImage) {
@@ -334,6 +398,8 @@ class LibraryManager: ObservableObject {
         books = decoded
     }
 
+    func saveGroupsPublic() { saveGroups() }
+
     private func saveGroups() {
         if let data = try? JSONEncoder().encode(groups) {
             UserDefaults.standard.set(data, forKey: groupsKey)
@@ -347,6 +413,22 @@ class LibraryManager: ObservableObject {
         groups = decoded
     }
     
+    // MARK: - Filtered Group Lists
+
+    var seriesGroups: [BookGroup] {
+        groups.filter { $0.autoGroupType == .series }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    var authorGroups: [BookGroup] {
+        groups.filter { $0.autoGroupType == .author }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    var manualGroups: [BookGroup] {
+        groups.filter { $0.autoGroupType == .none }
+    }
+
     // MARK: - Sorting
     
     var sortedBooks: [Book] {

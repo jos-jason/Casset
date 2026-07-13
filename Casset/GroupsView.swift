@@ -172,6 +172,12 @@ struct GroupsView: View {
         }
     }
 
+    private var hasAnyGroups: Bool {
+        !libraryManager.seriesGroups.isEmpty
+        || !libraryManager.authorGroups.isEmpty
+        || !libraryManager.manualGroups.isEmpty
+    }
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
@@ -182,7 +188,7 @@ struct GroupsView: View {
                 .hidden()
 
                 Group {
-                    if libraryManager.groups.isEmpty {
+                    if !hasAnyGroups {
                         VStack(spacing: 16) {
                             Image(systemName: "folder")
                                 .font(.system(size: 60))
@@ -197,53 +203,9 @@ struct GroupsView: View {
                                 .padding(.horizontal, 40)
                         }
                     } else if useSimpleLibrary {
-                        List {
-                            ForEach(libraryManager.groups) { group in
-                                NavigationLink(
-                                    destination: GroupDetailView(group: group)
-                                        .environmentObject(libraryManager)
-                                ) {
-                                    let count = actualBookCount(for: group)
-                                    HStack(spacing: 14) {
-                                        CollectionCoverGrid(
-                                            books: booksInGroup(group),
-                                            size: 56
-                                        )
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(group.name)
-                                                .font(.headline)
-                                            Text("\(count) book\(count == 1 ? "" : "s")")
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    }
-                                    .padding(.vertical, 4)
-                                }
-                            }
-                            .onDelete(perform: libraryManager.removeGroup)
-                        }
+                        simpleListBody
                     } else {
-                        // Cassette-style collection rows
-                        ScrollView {
-                            VStack(spacing: 10) {
-                                ForEach(libraryManager.groups) { group in
-                                    NavigationLink(
-                                        destination: GroupDetailView(group: group)
-                                            .environmentObject(libraryManager)
-                                    ) {
-                                        CollectionCassetteRow(
-                                            group: group,
-                                            books: booksInGroup(group),
-                                            bookCount: actualBookCount(for: group)
-                                        )
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                            .padding(12)
-                            .padding(.bottom, 80)
-                        }
-                        .padding(.horizontal, 8)
+                        cassetteBody
                     }
                 }
             }
@@ -268,6 +230,126 @@ struct GroupsView: View {
                 Button("Cancel", role: .cancel) { newGroupName = "" }
             }
         }
+    }
+
+    // MARK: - Simple List Layout
+
+    private var simpleListBody: some View {
+        List {
+            if !libraryManager.manualGroups.isEmpty {
+                Section("Your Collections") {
+                    ForEach(libraryManager.manualGroups) { group in
+                        simpleRow(for: group)
+                    }
+                    .onDelete(perform: deleteManualGroups)
+                }
+            }
+            if !libraryManager.seriesGroups.isEmpty {
+                Section("Series") {
+                    ForEach(libraryManager.seriesGroups) { group in
+                        simpleRow(for: group)
+                    }
+                }
+            }
+            if !libraryManager.authorGroups.isEmpty {
+                Section("Authors") {
+                    ForEach(libraryManager.authorGroups) { group in
+                        simpleRow(for: group)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func simpleRow(for group: BookGroup) -> some View {
+        NavigationLink(
+            destination: GroupDetailView(group: group)
+                .environmentObject(libraryManager)
+        ) {
+            let count = actualBookCount(for: group)
+            HStack(spacing: 14) {
+                CollectionCoverGrid(
+                    books: booksInGroup(group),
+                    size: 56
+                )
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(group.name)
+                        .font(.headline)
+                    Text("\(count) book\(count == 1 ? "" : "s")")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    // MARK: - Cassette Layout
+
+    private var cassetteBody: some View {
+        ScrollView {
+            VStack(spacing: 10) {
+                if !libraryManager.manualGroups.isEmpty {
+                    sectionHeader("Your Collections")
+                    ForEach(libraryManager.manualGroups) { group in
+                        cassetteRow(for: group)
+                    }
+                }
+                if !libraryManager.seriesGroups.isEmpty {
+                    sectionHeader("Series")
+                    ForEach(libraryManager.seriesGroups) { group in
+                        cassetteRow(for: group)
+                    }
+                }
+                if !libraryManager.authorGroups.isEmpty {
+                    sectionHeader("Authors")
+                    ForEach(libraryManager.authorGroups) { group in
+                        cassetteRow(for: group)
+                    }
+                }
+            }
+            .padding(12)
+            .padding(.bottom, 80)
+        }
+        .padding(.horizontal, 8)
+    }
+
+    @ViewBuilder
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.title3.weight(.bold))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 8)
+    }
+
+    @ViewBuilder
+    private func cassetteRow(for group: BookGroup) -> some View {
+        NavigationLink(
+            destination: GroupDetailView(group: group)
+                .environmentObject(libraryManager)
+        ) {
+            CollectionCassetteRow(
+                group: group,
+                books: booksInGroup(group),
+                bookCount: actualBookCount(for: group)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Helpers
+
+    /// Deletes manual groups from the filtered manualGroups list.
+    private func deleteManualGroups(at offsets: IndexSet) {
+        let manualIDs = libraryManager.manualGroups.map(\.id)
+        let idsToRemove = offsets.map { manualIDs[$0] }
+        for id in idsToRemove {
+            if let idx = libraryManager.groups.firstIndex(where: { $0.id == id }) {
+                libraryManager.groups.remove(at: idx)
+            }
+        }
+        libraryManager.saveGroupsPublic()
     }
 }
 

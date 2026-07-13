@@ -98,8 +98,8 @@ struct CassetteSpineView: View {
                             .frame(width: lineWidth, height: 34)
 
                         // Author + play button
-                        ZStack {
-                            // Author name centered in the section
+                        HStack(spacing: 0) {
+                            // Author name centered between divider and play button
                             if !book.author.isEmpty {
                                 VStack(alignment: .leading, spacing: 1) {
                                     ForEach(authorNameParts, id: \.self) { part in
@@ -109,29 +109,28 @@ struct CassetteSpineView: View {
                                             .foregroundStyle(lineColor.opacity(0.8))
                                     }
                                 }
+                                .frame(maxWidth: .infinity)
+                            } else {
+                                Spacer()
                             }
 
-                            // Play button aligned to trailing edge
-                            HStack {
-                                Spacer()
-                                Button {
-                                    onPlay()
-                                } label: {
-                                    Image(systemName: "play.fill")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(lineColor)
-                                        .frame(width: 28, height: 28)
-                                        .background(
-                                            Circle()
-                                                .strokeBorder(lineColor.opacity(0.8), lineWidth: lineWidth)
-                                        )
-                                }
-                                .buttonStyle(.plain)
+                            // Play button
+                            Button {
+                                onPlay()
+                            } label: {
+                                Image(systemName: "play.fill")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(lineColor)
+                                    .frame(width: 28, height: 28)
+                                    .background(
+                                        Circle()
+                                            .strokeBorder(lineColor.opacity(0.8), lineWidth: lineWidth)
+                                    )
                             }
+                            .buttonStyle(.plain)
                         }
-                        .frame(maxWidth: .infinity)
                         .padding(.leading, 8)
-                        .padding(.trailing, 48)
+                        .padding(.trailing, 8)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(boxBackground)

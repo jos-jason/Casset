@@ -27,7 +27,20 @@ struct ContentView: View {
     // For editing book details
     @State private var bookToEdit: Book? = nil
 
+    // Search
+    @State private var searchText: String = ""
+
     @State private var selectedTab: Int = 0
+
+    private var filteredBooks: [Book] {
+        if searchText.isEmpty {
+            return libraryManager.sortedBooks
+        }
+        return libraryManager.sortedBooks.filter { book in
+            book.title.localizedCaseInsensitiveContains(searchText) ||
+            book.author.localizedCaseInsensitiveContains(searchText)
+        }
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -125,7 +138,7 @@ struct ContentView: View {
                         } else if useSimpleLibrary {
                             // Simple list style (standard Apple UI)
                             List {
-                                ForEach(libraryManager.sortedBooks) { book in
+                                ForEach(filteredBooks) { book in
                                     NavigationLink(
                                         destination: PlayerView(book: book)
                                             .environmentObject(libraryManager)
@@ -197,7 +210,7 @@ struct ContentView: View {
                             // Cassette spine style
                             ScrollView {
                                 VStack(spacing: 10) {
-                                    ForEach(libraryManager.sortedBooks) { book in
+                                    ForEach(filteredBooks) { book in
                                         NavigationLink(
                                             destination: PlayerView(book: book)
                                                 .environmentObject(libraryManager)
@@ -243,6 +256,7 @@ struct ContentView: View {
                     }
                 }
                 .navigationTitle("Library")
+                .searchable(text: $searchText, prompt: "Search by title or author")
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
