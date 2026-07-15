@@ -13,6 +13,10 @@ struct BookEditView: View {
     @State private var genre: String
     @State private var useCustomColor: Bool
     @State private var customColor: Color
+    @State private var useCustomTextColor: Bool
+    @State private var customTextColor: Color
+    @State private var showBoxColorPicker = false
+    @State private var showTextColorPicker = false
     @State private var boxArtPrompt: String
     @State private var boxArtImage: UIImage?
     @State private var selectedPhotoItem: PhotosPickerItem?
@@ -34,6 +38,13 @@ struct BookEditView: View {
     /// Inner box is ~62pt tall; width varies by device (~311–366pt)
     static let boxArtAspectRatio: CGFloat = 340.0 / 62.0  // ~5.5:1
 
+    /// Best available cover image for the color picker
+    private var coverImageForPicker: UIImage? {
+        if let img = squareCoverImage { return img }
+        if let url = book.bestCoverArtURL() { return UIImage(contentsOfFile: url.path) }
+        return nil
+    }
+
     init(book: Book) {
         self.book = book
         _title = State(initialValue: book.title)
@@ -42,6 +53,8 @@ struct BookEditView: View {
         _genre = State(initialValue: book.genre)
         _useCustomColor = State(initialValue: book.customColorHex != nil)
         _customColor = State(initialValue: Self.color(from: book.customColorHex) ?? Color(white: 0.3))
+        _useCustomTextColor = State(initialValue: book.customTextColorHex != nil)
+        _customTextColor = State(initialValue: Self.color(from: book.customTextColorHex) ?? .white)
         _boxArtPrompt = State(initialValue: book.boxArtPrompt)
         if let url = book.cassetteBoxArtURL() {
             _boxArtImage = State(initialValue: UIImage(contentsOfFile: url.path))
@@ -77,6 +90,27 @@ struct BookEditView: View {
                     Toggle("Custom Color", isOn: $useCustomColor)
                     if useCustomColor {
                         ColorPicker("Box Color", selection: $customColor, supportsOpacity: false)
+                        if coverImageForPicker != nil {
+                            Button {
+                                showBoxColorPicker = true
+                            } label: {
+                                Label("Pick from Cover Art", systemImage: "eyedropper")
+                            }
+                        }
+                    }
+                }
+
+                Section("Cassette Text Color") {
+                    Toggle("Custom Text Color", isOn: $useCustomTextColor)
+                    if useCustomTextColor {
+                        ColorPicker("Text Color", selection: $customTextColor, supportsOpacity: false)
+                        if coverImageForPicker != nil {
+                            Button {
+                                showTextColorPicker = true
+                            } label: {
+                                Label("Pick from Cover Art", systemImage: "eyedropper")
+                            }
+                        }
                     }
                 }
 
@@ -233,6 +267,7 @@ struct BookEditView: View {
                             series: series,
                             genre: genre,
                             customColorHex: useCustomColor ? Self.hexString(from: customColor) : nil,
+                            customTextColorHex: useCustomTextColor ? Self.hexString(from: customTextColor) : nil,
                             boxArtPrompt: boxArtPrompt
                         )
                         dismiss()
@@ -262,6 +297,16 @@ struct BookEditView: View {
                        let uiImage = UIImage(data: data) {
                         cassetteCoverImage = uiImage
                     }
+                }
+            }
+            .sheet(isPresented: $showBoxColorPicker) {
+                if let img = coverImageForPicker {
+                    CoverArtColorPicker(image: img, selectedColor: $customColor)
+                }
+            }
+            .sheet(isPresented: $showTextColorPicker) {
+                if let img = coverImageForPicker {
+                    CoverArtColorPicker(image: img, selectedColor: $customTextColor)
                 }
             }
         }

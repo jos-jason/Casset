@@ -31,8 +31,6 @@ struct ContentView: View {
     @State private var searchText: String = ""
     @State private var isSearching: Bool = false
 
-    @State private var selectedTab: Int = 0
-
     private var filteredBooks: [Book] {
         if searchText.isEmpty {
             return libraryManager.sortedBooks
@@ -42,6 +40,8 @@ struct ContentView: View {
             book.author.localizedCaseInsensitiveContains(searchText)
         }
     }
+
+    @State private var selectedTab: Int = 0
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -55,19 +55,21 @@ struct ContentView: View {
             }
 
             if !playerScreenTracker.isShowingPlayer {
-                // Bottom fade gradient
-                LinearGradient(
-                    colors: [.black, .black.opacity(0)],
-                    startPoint: .bottom,
-                    endPoint: .top
-                )
-                .frame(height: 80)
-                .allowsHitTesting(false)
-
-                // MARK: Custom tab bar
+                // Bottom fade gradient — sits above content, below tab bar
                 VStack(spacing: 0) {
                     Spacer()
+                    LinearGradient(
+                        colors: [Color(.systemBackground), Color(.systemBackground).opacity(0)],
+                        startPoint: .bottom,
+                        endPoint: .top
+                    )
+                    .frame(height: 80)
+                }
+                .allowsHitTesting(false)
 
+                // MARK: Custom tab bar — drawn on top of everything
+                VStack(spacing: 0) {
+                    Spacer()
                     GlassEffectContainer(spacing: 12) {
                         HStack(spacing: 12) {
                             Button {
@@ -120,6 +122,37 @@ struct ContentView: View {
                         isActive: $isPushingFromMini
                     ) { EmptyView() }
                     .hidden()
+
+                    // Inline search bar — only visible when magnifying glass is tapped
+                    if isSearching {
+                        HStack {
+                            HStack(spacing: 6) {
+                                Image(systemName: "magnifyingglass")
+                                    .foregroundStyle(.secondary)
+                                TextField("Search by title or author", text: $searchText)
+                                    .textFieldStyle(.plain)
+                                    .autocorrectionDisabled()
+                                if !searchText.isEmpty {
+                                    Button {
+                                        searchText = ""
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                            .padding(8)
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+
+                            Button("Cancel") {
+                                searchText = ""
+                                isSearching = false
+                            }
+                            .foregroundStyle(.white)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 4)
+                    }
 
                     Group {
                         if libraryManager.books.isEmpty {
@@ -257,10 +290,6 @@ struct ContentView: View {
                     }
                 }
                 .navigationTitle("Library")
-                .searchable(text: $searchText, isPresented: $isSearching, prompt: "Search by title or author")
-                .onChange(of: isSearching) { _, active in
-                    if !active { searchText = "" }
-                }
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
@@ -305,7 +334,6 @@ struct ContentView: View {
                             Image(systemName: "plus")
                         }
                     }
-                    
                 }
                 .fileImporter(
                     isPresented: $showingImporter,

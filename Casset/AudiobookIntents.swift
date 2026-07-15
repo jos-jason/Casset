@@ -1,4 +1,5 @@
 import AppIntents
+import AVFoundation
 import Foundation
 
 // MARK: - App Entity for Books
@@ -80,21 +81,43 @@ struct PlayAudiobookIntent: AudioPlaybackIntent {
     static var title: LocalizedStringResource = "Play Audiobook"
     static var description = IntentDescription("Plays a specific audiobook from your library")
     
-    static var openAppWhenRun: Bool = false
+    static var openAppWhenRun: Bool = true
     static var isDiscoverable: Bool = true
     
     @Parameter(title: "Book", description: "The audiobook to play")
     var book: BookEntity
     
     func perform() async throws -> some IntentResult {
-        // Post notification to play the specific book
-        NotificationCenter.default.post(
-            name: NSNotification.Name("PlayAudiobookFromSiri"),
-            object: nil,
-            userInfo: ["bookID": book.id]
-        )
+        // Store the requested book ID so the app can pick it up once ready
+        UserDefaults.standard.set(book.id.uuidString, forKey: "siri_pending_book_id")
+        
+        // If the player is already available, play immediately
+        await MainActor.run {
+            if let playerManager = AudioPlayerManager.shared {
+                PlayAudiobookIntent.playBook(id: book.id, on: playerManager)
+            }
+        }
         
         return .result()
+    }
+    
+    /// Loads and plays a book on the given player manager.
+    @MainActor
+    static func playBook(id: UUID, on playerManager: AudioPlayerManager) {
+        guard let data = UserDefaults.standard.data(forKey: "casset_library"),
+              let books = try? JSONDecoder().decode([Book].self, from: data),
+              let bookModel = books.first(where: { $0.id == id }),
+              let url = bookModel.resolvedURL() else {
+            return
+        }
+        
+        // Clear the pending request
+        UserDefaults.standard.removeObject(forKey: "siri_pending_book_id")
+        
+        playerManager.load(url: url, bookID: id)
+        if !playerManager.isPlaying {
+            playerManager.togglePlayPause()
+        }
     }
     
     static var parameterSummary: some ParameterSummary {
@@ -111,7 +134,11 @@ struct PauseAudiobookIntent: AudioPlaybackIntent {
     static var openAppWhenRun: Bool = false
     
     func perform() async throws -> some IntentResult {
-        NotificationCenter.default.post(name: NSNotification.Name("PauseAudiobookFromSiri"), object: nil)
+        await MainActor.run {
+            if let playerManager = AudioPlayerManager.shared, playerManager.isPlaying {
+                playerManager.togglePlayPause()
+            }
+        }
         return .result()
     }
 }
@@ -128,11 +155,17 @@ struct SkipForwardIntent: AudioPlaybackIntent {
     var seconds: Int?
     
     func perform() async throws -> some IntentResult {
-        NotificationCenter.default.post(
-            name: NSNotification.Name("SkipForwardFromSiri"),
-            object: nil,
-            userInfo: seconds.map { ["seconds": $0] }
-        )
+        let skipSeconds = seconds
+        await MainActor.run {
+            if let playerManager = AudioPlayerManager.shared {
+                if let skipSeconds, let player = playerManager.player {
+                    player.currentTime = min(player.currentTime + Double(skipSeconds), player.duration)
+                    playerManager.currentTime = player.currentTime
+                } else {
+                    playerManager.skipForward()
+                }
+            }
+        }
         return .result()
     }
 }
@@ -149,11 +182,17 @@ struct SkipBackwardIntent: AudioPlaybackIntent {
     var seconds: Int?
     
     func perform() async throws -> some IntentResult {
-        NotificationCenter.default.post(
-            name: NSNotification.Name("SkipBackwardFromSiri"),
-            object: nil,
-            userInfo: seconds.map { ["seconds": $0] }
-        )
+        let skipSeconds = seconds
+        await MainActor.run {
+            if let playerManager = AudioPlayerManager.shared {
+                if let skipSeconds, let player = playerManager.player {
+                    player.currentTime = max(player.currentTime - Double(skipSeconds), 0)
+                    playerManager.currentTime = player.currentTime
+                } else {
+                    playerManager.skipBackward()
+                }
+            }
+        }
         return .result()
     }
 }
@@ -164,10 +203,38 @@ struct ResumeAudiobookIntent: AudioPlaybackIntent {
     static var title: LocalizedStringResource = "Resume Audiobook"
     static var description = IntentDescription("Resumes playback of your current audiobook")
     
-    static var openAppWhenRun: Bool = false
+    static var openAppWhenRun: Bool = true
     
     func perform() async throws -> some IntentResult {
-        NotificationCenter.default.post(name: NSNotification.Name("ResumeAudiobookFromSiri"), object: nil)
+        // If the player is already loaded, just resume
+        let handled = await MainActor.run { () -> Bool in
+            if let playerManager = AudioPlayerManager.shared,
+               playerManager.player != nil, !playerManager.isPlaying {
+                playerManager.togglePlayPause()
+                return true
+            }
+            return false
+        }
+        
+        if handled { return .result() }
+        
+        // Cold start: find the most recently played book and queue it up
+        guard let data = UserDefaults.standard.data(forKey: "casset_library"),
+              let books = try? JSONDecoder().decode([Book].self, from: data),
+              let lastBook = books.sorted(by: { $0.lastInteracted > $1.lastInteracted }).first,
+              lastBook.lastPosition > 0 else {
+            return .result()
+        }
+        
+        // Use the same pending mechanism as PlayAudiobookIntent
+        UserDefaults.standard.set(lastBook.id.uuidString, forKey: "siri_pending_book_id")
+        
+        await MainActor.run {
+            if let playerManager = AudioPlayerManager.shared {
+                PlayAudiobookIntent.playBook(id: lastBook.id, on: playerManager)
+            }
+        }
+        
         return .result()
     }
 }
@@ -215,6 +282,17 @@ struct AudiobookShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Skip Back",
             systemImageName: "gobackward.30"
+        )
+        
+        AppShortcut(
+            intent: PlayAudiobookIntent(),
+            phrases: [
+                "Play \(\.$book) in \(.applicationName)",
+                "Listen to \(\.$book) in \(.applicationName)",
+                "Read \(\.$book) in \(.applicationName)"
+            ],
+            shortTitle: "Play Audiobook",
+            systemImageName: "play.fill"
         )
     }
 }

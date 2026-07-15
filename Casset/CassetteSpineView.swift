@@ -6,6 +6,7 @@ struct CassetteSpineView: View {
 
     @AppStorage("colorIntensity") private var colorIntensity: Double = 0.5
     @State private var coverColors: CoverColors = ColorExtractor.defaultColors
+    @Environment(\.colorScheme) private var colorScheme
 
     private var coverImage: UIImage? {
         guard let artURL = book.bestCoverArtURL() else { return nil }
@@ -24,7 +25,13 @@ struct CassetteSpineView: View {
         return 20
     }
 
-    private let lineColor = Color.white
+    private var lineColor: Color { colorScheme == .dark ? .white : .black }
+    private var textColor: Color {
+        if let hex = book.customTextColorHex, let color = Self.color(from: hex) {
+            return color
+        }
+        return lineColor
+    }
     private let lineWidth: CGFloat = 1.2
 
     private var authorNameParts: [String] {
@@ -73,7 +80,7 @@ struct CassetteSpineView: View {
                         } else {
                             Image(systemName: "book.closed.fill")
                                 .font(.system(size: 24))
-                                .foregroundStyle(lineColor.opacity(0.5))
+                                .foregroundStyle(textColor.opacity(0.5))
                                 .frame(maxHeight: .infinity)
                                 .frame(width: 50)
                         }
@@ -88,13 +95,13 @@ struct CassetteSpineView: View {
                             .font(.system(size: titleSize, weight: .bold))
                             .lineLimit(2)
                             .minimumScaleFactor(0.75)
-                            .foregroundStyle(lineColor)
+                            .foregroundStyle(textColor)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.leading, 12)
                             .padding(.trailing, 8)
 
                         // Short divider
-                        lineColor.opacity(0.6)
+                        textColor.opacity(0.6)
                             .frame(width: lineWidth, height: 34)
 
                         // Author + play button
@@ -106,7 +113,7 @@ struct CassetteSpineView: View {
                                         Text(part)
                                             .font(.system(size: 10, weight: .medium))
                                             .lineLimit(1)
-                                            .foregroundStyle(lineColor.opacity(0.8))
+                                            .foregroundStyle(textColor.opacity(0.8))
                                     }
                                 }
                                 .frame(maxWidth: .infinity)
@@ -120,11 +127,11 @@ struct CassetteSpineView: View {
                             } label: {
                                 Image(systemName: "play.fill")
                                     .font(.system(size: 11))
-                                    .foregroundStyle(lineColor)
+                                    .foregroundStyle(textColor)
                                     .frame(width: 28, height: 28)
                                     .background(
                                         Circle()
-                                            .strokeBorder(lineColor.opacity(0.8), lineWidth: lineWidth)
+                                            .strokeBorder(textColor.opacity(0.8), lineWidth: lineWidth)
                                     )
                             }
                             .buttonStyle(.plain)
@@ -148,7 +155,7 @@ struct CassetteSpineView: View {
         // Outer box: black background with white border, inner box inset
         innerBox
             .padding(12)
-            .background(Color.black)
+            .background(colorScheme == .dark ? Color.black : Color.white)
             .overlay(
                 // 3D depth line from inner box top-left corner, diagonally up-right
                 GeometryReader { geo in

@@ -1,5 +1,6 @@
 import SwiftUI
 import AVFoundation
+import AppIntents
 import Combine
 
 // MARK: - Sort Options
@@ -253,13 +254,14 @@ class LibraryManager: ObservableObject {
 
     // MARK: Book Details
 
-    func updateBookDetails(bookID: UUID, title: String, author: String, series: String, genre: String, customColorHex: String? = nil, boxArtPrompt: String = "") {
+    func updateBookDetails(bookID: UUID, title: String, author: String, series: String, genre: String, customColorHex: String? = nil, customTextColorHex: String? = nil, boxArtPrompt: String = "") {
         guard let i = books.firstIndex(where: { $0.id == bookID }) else { return }
         books[i].title = title
         books[i].author = author
         books[i].series = series
         books[i].genre = genre
         books[i].customColorHex = customColorHex
+        books[i].customTextColorHex = customTextColorHex
         books[i].boxArtPrompt = boxArtPrompt
         save()
         syncAutoCollections()
@@ -389,6 +391,8 @@ class LibraryManager: ObservableObject {
         if let data = try? JSONEncoder().encode(books) {
             UserDefaults.standard.set(data, forKey: storageKey)
         }
+        // Keep Siri's book list in sync when library changes
+        AudiobookShortcuts.updateAppShortcutParameters()
     }
 
     private func load() {

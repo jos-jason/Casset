@@ -19,6 +19,9 @@ struct Chapter: Identifiable {
 }
 
 class AudioPlayerManager: ObservableObject {
+    /// Shared instance for App Intents to access when the app is running
+    static weak var shared: AudioPlayerManager?
+    
     @Published var player: AVAudioPlayer?
     @Published var isPlaying: Bool = false
     @Published var bookmarks: [Bookmark] = []     // current book only
@@ -38,6 +41,7 @@ class AudioPlayerManager: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var lastSavedTime: Double = -1
     private let saveInterval: Double = 5 // seconds between position saves
+    private var wasPlayingBeforeInterruption: Bool = false
 
     var skipDuration: Double {
         let value = UserDefaults.standard.double(forKey: "skipDuration")
@@ -60,6 +64,7 @@ class AudioPlayerManager: ObservableObject {
 
     func attachLibraryManager(_ manager: LibraryManager) {
         self.libraryManager = manager
+        AudioPlayerManager.shared = self
         setupAudioSession()
         setupRemoteTransportControls()
         setupSiriIntentHandlers()
@@ -76,6 +81,80 @@ class AudioPlayerManager: ObservableObject {
             print("Audio session configured for background playback")
         } catch {
             print("Failed to set up audio session: \(error)")
+        }
+        
+        // Observe audio interruptions (e.g. GPS announcements, phone calls)
+        // so we can resume playback after the interruption ends.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAudioInterruption(_:)),
+            name: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance()
+        )
+    }
+    
+    @objc private func handleAudioInterruption(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            return
+        }
+        
+        switch type {
+        case .began:
+            // System interrupted our audio — pause playback state tracking
+            if isPlaying {
+                wasPlayingBeforeInterruption = true
+                isPlaying = false
+                stopTimer()
+                saveCurrentPosition()
+                // Update Now Playing to reflect paused state
+                if let library = libraryManager,
+                   let bookID = currentBookID,
+                   let book = library.books.first(where: { $0.id == bookID }) {
+                    let artwork = loadArtwork(for: book)
+                    updateNowPlayingInfo(bookTitle: book.title, artwork: artwork)
+                }
+            }
+            
+        case .ended:
+            guard wasPlayingBeforeInterruption else { return }
+            wasPlayingBeforeInterruption = false
+            
+            // Check if we should resume
+            let shouldResume: Bool
+            if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
+                shouldResume = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+                    .contains(.shouldResume)
+            } else {
+                shouldResume = true
+            }
+            
+            if shouldResume {
+                // Re-activate the audio session and resume playback
+                do {
+                    try AVAudioSession.sharedInstance().setActive(true)
+                } catch {
+                    print("Failed to reactivate audio session: \(error)")
+                }
+                
+                player?.enableRate = true
+                player?.rate = Float(playbackSpeed)
+                player?.play()
+                isPlaying = true
+                startTimer()
+                
+                // Update Now Playing to reflect playing state
+                if let library = libraryManager,
+                   let bookID = currentBookID,
+                   let book = library.books.first(where: { $0.id == bookID }) {
+                    let artwork = loadArtwork(for: book)
+                    updateNowPlayingInfo(bookTitle: book.title, artwork: artwork)
+                }
+            }
+            
+        @unknown default:
+            break
         }
     }
     
@@ -128,77 +207,9 @@ class AudioPlayerManager: ObservableObject {
     }
     
     // MARK: - Siri Intent Handlers
-    
-    private func setupSiriIntentHandlers() {
-        // Play/Resume audiobook
-        NotificationCenter.default.publisher(for: NSNotification.Name("PlayAudiobookFromSiri"))
-            .sink { [weak self] notification in
-                guard let self else { return }
-                if let bookID = notification.userInfo?["bookID"] as? UUID {
-                    // Load and play specific book
-                    if let library = self.libraryManager,
-                       let book = library.books.first(where: { $0.id == bookID }),
-                       let url = book.resolvedURL() {
-                        self.load(url: url, bookID: bookID)
-                        if !self.isPlaying {
-                            self.togglePlayPause()
-                        }
-                    }
-                } else {
-                    // Just resume current book if available
-                    if !self.isPlaying && self.player != nil {
-                        self.togglePlayPause()
-                    }
-                }
-            }
-            .store(in: &cancellables)
-        
-        // Resume audiobook
-        NotificationCenter.default.publisher(for: NSNotification.Name("ResumeAudiobookFromSiri"))
-            .sink { [weak self] _ in
-                guard let self else { return }
-                if !self.isPlaying && self.player != nil {
-                    self.togglePlayPause()
-                }
-            }
-            .store(in: &cancellables)
-        
-        // Pause audiobook
-        NotificationCenter.default.publisher(for: NSNotification.Name("PauseAudiobookFromSiri"))
-            .sink { [weak self] _ in
-                guard let self else { return }
-                if self.isPlaying {
-                    self.togglePlayPause()
-                }
-            }
-            .store(in: &cancellables)
-        
-        // Skip forward
-        NotificationCenter.default.publisher(for: NSNotification.Name("SkipForwardFromSiri"))
-            .sink { [weak self] notification in
-                guard let self else { return }
-                if let seconds = notification.userInfo?["seconds"] as? Int {
-                    self.player?.currentTime = min(self.player!.currentTime + Double(seconds), self.player!.duration)
-                    self.currentTime = self.player?.currentTime ?? 0
-                } else {
-                    self.skipForward()
-                }
-            }
-            .store(in: &cancellables)
-        
-        // Skip backward
-        NotificationCenter.default.publisher(for: NSNotification.Name("SkipBackwardFromSiri"))
-            .sink { [weak self] notification in
-                guard let self else { return }
-                if let seconds = notification.userInfo?["seconds"] as? Int {
-                    self.player?.currentTime = max(self.player!.currentTime - Double(seconds), 0)
-                    self.currentTime = self.player?.currentTime ?? 0
-                } else {
-                    self.skipBackward()
-                }
-            }
-            .store(in: &cancellables)
-    }
+    // Siri intents now call AudioPlayerManager.shared directly from AudiobookIntents.swift.
+    // No NotificationCenter handlers needed.
+    private func setupSiriIntentHandlers() { }
     
     private func updateNowPlayingInfo(bookTitle: String? = nil, artwork: UIImage? = nil) {
         var nowPlayingInfo = [String: Any]()

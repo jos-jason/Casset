@@ -13,6 +13,7 @@ struct Book: Identifiable, Codable {
     var genre: String = ""
     var artworkFilename: String? = nil
     var customColorHex: String? = nil
+    var customTextColorHex: String? = nil
     var cassetteBoxArtFilename: String? = nil
     var boxArtPrompt: String = ""
     var customCoverArtFilename: String? = nil       // Square (1:1) cover art
