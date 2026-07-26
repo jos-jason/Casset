@@ -31,6 +31,17 @@ struct ContentView: View {
     @State private var searchText: String = ""
     @State private var isSearching: Bool = false
 
+    // Export / Import
+    @State private var isExporting: Bool = false
+    @State private var exportURL: URL? = nil
+    @State private var showingCassetImporter = false
+    @State private var isSelectingForExport = false
+    @State private var selectedBookIDs: Set<UUID> = []
+    @State private var exportError: String? = nil
+    @State private var showExportError = false
+    @State private var importResultMessage: String? = nil
+    @State private var showImportResult = false
+
     private var filteredBooks: [Book] {
         if searchText.isEmpty {
             return libraryManager.sortedBooks
@@ -111,6 +122,160 @@ struct ContentView: View {
         .ignoresSafeArea(edges: .bottom)
     }
 
+    // MARK: - Library Content
+
+    @ViewBuilder
+    private var libraryContent: some View {
+        if libraryManager.books.isEmpty {
+            VStack(spacing: 16) {
+                Image(systemName: "books.vertical")
+                    .font(.system(size: 60))
+                    .foregroundStyle(.secondary)
+                Text("Your library is empty")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                Button("Import Audio File") {
+                    importType = .files
+                    showingImporter = true
+                }
+                    .buttonStyle(.borderedProminent)
+            }
+        } else if useSimpleLibrary {
+            simpleLibraryList
+        } else {
+            cassetteLibraryList
+        }
+    }
+
+    private var simpleLibraryList: some View {
+        List {
+            ForEach(filteredBooks) { book in
+                NavigationLink(
+                    destination: PlayerView(book: book)
+                        .environmentObject(libraryManager)
+                        .environmentObject(playerManager)
+                        .environmentObject(playerScreenTracker)
+                ) {
+                    HStack(spacing: 14) {
+                        Group {
+                            if let artURL = book.bestCoverArtURL(),
+                               let uiImage = UIImage(contentsOfFile: artURL.path) {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .scaledToFill()
+                            } else {
+                                Image(systemName: "book.closed.fill")
+                                    .font(.system(size: 28))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .frame(width: 56, height: 56)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.secondary.opacity(0.15))
+                        )
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(book.title)
+                                .font(.headline)
+                            if !book.author.isEmpty {
+                                Text(book.author)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            } else if book.lastPosition > 0 {
+                                Text("Last played: \(formatTime(book.lastPosition))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text("Not started")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                .contextMenu {
+                    Button {
+                        bookToEdit = book
+                    } label: {
+                        Label("Edit Book Info", systemImage: "pencil")
+                    }
+                    Button {
+                        bookToGroup = book
+                        isChoosingGroup = true
+                    } label: {
+                        Label("Add to Collection", systemImage: "folder.badge.plus")
+                    }
+                    Button {
+                        exportSingleBook(book)
+                    } label: {
+                        Label("Export Book", systemImage: "square.and.arrow.up")
+                    }
+                    Button(role: .destructive) {
+                        libraryManager.removeBooks(withIDs: [book.id])
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                }
+            }
+        }
+        .padding(.bottom, 60)
+    }
+
+    private var cassetteLibraryList: some View {
+        ScrollView {
+            VStack(spacing: 10) {
+                ForEach(filteredBooks) { book in
+                    NavigationLink(
+                        destination: PlayerView(book: book)
+                            .environmentObject(libraryManager)
+                            .environmentObject(playerManager)
+                            .environmentObject(playerScreenTracker)
+                    ) {
+                        CassetteSpineView(book: book) {
+                            // Play button: load and play the book
+                            if let url = book.resolvedURL() {
+                                playerManager.load(url: url, bookID: book.id)
+                                if !playerManager.isPlaying {
+                                    playerManager.togglePlayPause()
+                                }
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        Button {
+                            bookToEdit = book
+                        } label: {
+                            Label("Edit Book Info", systemImage: "pencil")
+                        }
+                        Button {
+                            bookToGroup = book
+                            isChoosingGroup = true
+                        } label: {
+                            Label("Add to Collection", systemImage: "folder.badge.plus")
+                        }
+                        Button {
+                            exportSingleBook(book)
+                        } label: {
+                            Label("Export Book", systemImage: "square.and.arrow.up")
+                        }
+                        Button(role: .destructive) {
+                            libraryManager.removeBooks(withIDs: [book.id])
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                }
+            }
+            .padding(12)
+            .padding(.bottom, 80)
+        }
+        .padding(.horizontal, 8)
+    }
+
     // MARK: - Library Tab
     private var libraryTab: some View {
         ZStack(alignment: .bottom) {
@@ -154,140 +319,7 @@ struct ContentView: View {
                         .padding(.vertical, 4)
                     }
 
-                    Group {
-                        if libraryManager.books.isEmpty {
-                            VStack(spacing: 16) {
-                                Image(systemName: "books.vertical")
-                                    .font(.system(size: 60))
-                                    .foregroundStyle(.secondary)
-                                Text("Your library is empty")
-                                    .font(.title3)
-                                    .foregroundStyle(.secondary)
-                                Button("Import Audio File") { 
-                                    importType = .files
-                                    showingImporter = true
-                                }
-                                    .buttonStyle(.borderedProminent)
-                            }
-                        } else if useSimpleLibrary {
-                            // Simple list style (standard Apple UI)
-                            List {
-                                ForEach(filteredBooks) { book in
-                                    NavigationLink(
-                                        destination: PlayerView(book: book)
-                                            .environmentObject(libraryManager)
-                                            .environmentObject(playerManager)
-                                            .environmentObject(playerScreenTracker)
-                                    ) {
-                                        HStack(spacing: 14) {
-                                            Group {
-                                                if let artURL = book.bestCoverArtURL(),
-                                                   let uiImage = UIImage(contentsOfFile: artURL.path) {
-                                                    Image(uiImage: uiImage)
-                                                        .resizable()
-                                                        .scaledToFill()
-                                                } else {
-                                                    Image(systemName: "book.closed.fill")
-                                                        .font(.system(size: 28))
-                                                        .foregroundStyle(.secondary)
-                                                }
-                                            }
-                                            .frame(width: 56, height: 56)
-                                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                                            .background(
-                                                RoundedRectangle(cornerRadius: 8)
-                                                    .fill(Color.secondary.opacity(0.15))
-                                            )
-
-                                            VStack(alignment: .leading, spacing: 4) {
-                                                Text(book.title)
-                                                    .font(.headline)
-                                                if !book.author.isEmpty {
-                                                    Text(book.author)
-                                                        .font(.subheadline)
-                                                        .foregroundStyle(.secondary)
-                                                } else if book.lastPosition > 0 {
-                                                    Text("Last played: \(formatTime(book.lastPosition))")
-                                                        .font(.caption)
-                                                        .foregroundStyle(.secondary)
-                                                } else {
-                                                    Text("Not started")
-                                                        .font(.caption)
-                                                        .foregroundStyle(.secondary)
-                                                }
-                                            }
-                                        }
-                                        .padding(.vertical, 4)
-                                    }
-                                    .contextMenu {
-                                        Button {
-                                            bookToEdit = book
-                                        } label: {
-                                            Label("Edit Book Info", systemImage: "pencil")
-                                        }
-                                        Button {
-                                            bookToGroup = book
-                                            isChoosingGroup = true
-                                        } label: {
-                                            Label("Add to Collection", systemImage: "folder.badge.plus")
-                                        }
-                                        Button(role: .destructive) {
-                                            libraryManager.removeBooks(withIDs: [book.id])
-                                        } label: {
-                                            Label("Delete", systemImage: "trash")
-                                        }
-                                    }
-                                }
-                            }
-                            .padding(.bottom, 60)
-                        } else {
-                            // Cassette spine style
-                            ScrollView {
-                                VStack(spacing: 10) {
-                                    ForEach(filteredBooks) { book in
-                                        NavigationLink(
-                                            destination: PlayerView(book: book)
-                                                .environmentObject(libraryManager)
-                                                .environmentObject(playerManager)
-                                                .environmentObject(playerScreenTracker)
-                                        ) {
-                                            CassetteSpineView(book: book) {
-                                                // Play button: load and play the book
-                                                if let url = book.resolvedURL() {
-                                                    playerManager.load(url: url, bookID: book.id)
-                                                    if !playerManager.isPlaying {
-                                                        playerManager.togglePlayPause()
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        .buttonStyle(.plain)
-                                        .contextMenu {
-                                            Button {
-                                                bookToEdit = book
-                                            } label: {
-                                                Label("Edit Book Info", systemImage: "pencil")
-                                            }
-                                            Button {
-                                                bookToGroup = book
-                                                isChoosingGroup = true
-                                            } label: {
-                                                Label("Add to Collection", systemImage: "folder.badge.plus")
-                                            }
-                                            Button(role: .destructive) {
-                                                libraryManager.removeBooks(withIDs: [book.id])
-                                            } label: {
-                                                Label("Delete", systemImage: "trash")
-                                            }
-                                        }
-                                    }
-                                }
-                                .padding(12)
-                                .padding(.bottom, 80)
-                            }
-                            .padding(.horizontal, 8)
-                        }
-                    }
+                    libraryContent
                 }
                 .navigationTitle("Library")
                 .toolbar {
@@ -318,17 +350,39 @@ struct ContentView: View {
                     }
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
-                            Button {
-                                importType = .files
-                                showingImporter = true
-                            } label: {
-                                Label("Import Files", systemImage: "doc.badge.plus")
+                            Section("Import") {
+                                Button {
+                                    importType = .files
+                                    showingImporter = true
+                                } label: {
+                                    Label("Import Files", systemImage: "doc.badge.plus")
+                                }
+                                Button {
+                                    importType = .folder
+                                    showingImporter = true
+                                } label: {
+                                    Label("Import Folder", systemImage: "folder.badge.plus")
+                                }
+                                Button {
+                                    showingCassetImporter = true
+                                } label: {
+                                    Label("Import Casset File", systemImage: "shippingbox.and.arrow.clockwise")
+                                }
                             }
-                            Button {
-                                importType = .folder
-                                showingImporter = true
-                            } label: {
-                                Label("Import Folder", systemImage: "folder.badge.plus")
+                            Section("Export") {
+                                Button {
+                                    exportAllBooks()
+                                } label: {
+                                    Label("Export All Books", systemImage: "square.and.arrow.up.on.square")
+                                }
+                                .disabled(libraryManager.books.isEmpty)
+                                Button {
+                                    isSelectingForExport = true
+                                    selectedBookIDs = []
+                                } label: {
+                                    Label("Export Selected Books", systemImage: "checkmark.circle")
+                                }
+                                .disabled(libraryManager.books.isEmpty)
                             }
                         } label: {
                             Image(systemName: "plus")
@@ -356,6 +410,27 @@ struct ContentView: View {
                             guard folderURL.startAccessingSecurityScopedResource() else { return }
                             defer { folderURL.stopAccessingSecurityScopedResource() }
                             
+                            // Look for a cover image in the folder
+                            let coverNames = ["cover", "folder", "front", "artwork", "album"]
+                            let imageExts  = ["jpg", "jpeg", "png"]
+                            var folderCoverURL: URL? = nil
+                            for name in coverNames {
+                                for ext in imageExts {
+                                    let candidate = folderURL.appendingPathComponent("\(name).\(ext)")
+                                    if FileManager.default.fileExists(atPath: candidate.path) {
+                                        folderCoverURL = candidate
+                                        break
+                                    }
+                                }
+                                if folderCoverURL != nil { break }
+                            }
+                            
+                            // Read cover image data while we still have security-scoped access
+                            var folderCoverData: Data? = nil
+                            if let coverURL = folderCoverURL {
+                                folderCoverData = try? Data(contentsOf: coverURL)
+                            }
+                            
                             // Get all audio files in the folder (including subfolders)
                             if let enumerator = FileManager.default.enumerator(
                                 at: folderURL,
@@ -367,7 +442,7 @@ struct ContentView: View {
                                     if let resourceValues = try? fileURL.resourceValues(forKeys: [.typeIdentifierKey]),
                                        let typeIdentifier = resourceValues.typeIdentifier,
                                        UTType(typeIdentifier)?.conforms(to: .audio) == true {
-                                        libraryManager.addBook(from: fileURL)
+                                        libraryManager.addBook(from: fileURL, securityScopedParent: folderURL, folderCoverData: folderCoverData)
                                     }
                                 }
                             }
@@ -421,6 +496,58 @@ struct ContentView: View {
                 .padding(.bottom, 100)
             }
         }
+        .sheet(isPresented: $isExporting) {
+            if let url = exportURL {
+                ShareSheetView(activityItems: [url])
+            }
+        }
+        .sheet(isPresented: $isSelectingForExport) {
+            ExportSelectionView(
+                books: libraryManager.sortedBooks,
+                selectedIDs: $selectedBookIDs,
+                onExport: { ids in
+                    isSelectingForExport = false
+                    let booksToExport = libraryManager.books.filter { ids.contains($0.id) }
+                    guard !booksToExport.isEmpty else { return }
+                    do {
+                        exportURL = try BookExporter.exportBooks(booksToExport)
+                        isExporting = true
+                    } catch {
+                        exportError = error.localizedDescription
+                        showExportError = true
+                    }
+                },
+                onCancel: {
+                    isSelectingForExport = false
+                }
+            )
+        }
+        .fileImporter(
+            isPresented: $showingCassetImporter,
+            allowedContentTypes: [.cassetBookArchive, .folder],
+            allowsMultipleSelection: false
+        ) { result in
+            do {
+                let urls = try result.get()
+                guard let url = urls.first else { return }
+                let count = try BookExporter.importBooks(from: url, into: libraryManager)
+                importResultMessage = "Successfully imported \(count) book\(count == 1 ? "" : "s")."
+                showImportResult = true
+            } catch {
+                exportError = "Import failed: \(error.localizedDescription)"
+                showExportError = true
+            }
+        }
+        .alert("Export Error", isPresented: $showExportError) {
+            Button("OK") {}
+        } message: {
+            Text(exportError ?? "An unknown error occurred.")
+        }
+        .alert("Import Complete", isPresented: $showImportResult) {
+            Button("OK") {}
+        } message: {
+            Text(importResultMessage ?? "")
+        }
     }
 
     // MARK: - Collections Tab
@@ -461,11 +588,109 @@ struct ContentView: View {
         }
     }
 
+    // MARK: - Export Helpers
+
+    private func exportSingleBook(_ book: Book) {
+        do {
+            exportURL = try BookExporter.exportBooks([book])
+            isExporting = true
+        } catch {
+            exportError = error.localizedDescription
+            showExportError = true
+        }
+    }
+
+    private func exportAllBooks() {
+        guard !libraryManager.books.isEmpty else { return }
+        do {
+            exportURL = try BookExporter.exportBooks(libraryManager.books)
+            isExporting = true
+        } catch {
+            exportError = error.localizedDescription
+            showExportError = true
+        }
+    }
+
     func formatTime(_ seconds: Double) -> String {
         let h = Int(seconds) / 3600
         let m = (Int(seconds) % 3600) / 60
         let s = Int(seconds) % 60
         return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
+    }
+}
+
+// MARK: - Share Sheet
+
+struct ShareSheetView: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+// MARK: - Export Selection View
+
+struct ExportSelectionView: View {
+    let books: [Book]
+    @Binding var selectedIDs: Set<UUID>
+    var onExport: (Set<UUID>) -> Void
+    var onCancel: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(books) { book in
+                    Button {
+                        if selectedIDs.contains(book.id) {
+                            selectedIDs.remove(book.id)
+                        } else {
+                            selectedIDs.insert(book.id)
+                        }
+                    } label: {
+                        HStack {
+                            Image(systemName: selectedIDs.contains(book.id) ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(selectedIDs.contains(book.id) ? .blue : .secondary)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(book.title)
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                                if !book.author.isEmpty {
+                                    Text(book.author)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            }
+            .navigationTitle("Select Books to Export")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { onCancel() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Export (\(selectedIDs.count))") {
+                        onExport(selectedIDs)
+                    }
+                    .disabled(selectedIDs.isEmpty)
+                }
+                ToolbarItem(placement: .bottomBar) {
+                    Button("Select All") {
+                        if selectedIDs.count == books.count {
+                            selectedIDs = []
+                        } else {
+                            selectedIDs = Set(books.map(\.id))
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -3,8 +3,10 @@ import Foundation
 struct Book: Identifiable, Codable {
     var id: UUID = UUID()
     var title: String
+    var subtitle: String = ""
     var author: String = ""
     var series: String = ""
+    var bookNumber: String = ""
     var bookmarkData: Data
     var duration: Double = 0
     var lastPosition: Double = 0

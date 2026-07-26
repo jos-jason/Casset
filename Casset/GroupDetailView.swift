@@ -5,11 +5,30 @@ struct GroupDetailView: View {
     @EnvironmentObject var libraryManager: LibraryManager
     @EnvironmentObject var playerManager: AudioPlayerManager
     @State private var showingAddBooks = false
+    @State private var bookToEdit: Book? = nil
 
     @AppStorage("useSimpleLibrary") var useSimpleLibrary: Bool = false
 
     var booksInGroup: [Book] {
-        libraryManager.books.filter { group.bookIDs.contains($0.id) }
+        let filtered = libraryManager.books.filter { group.bookIDs.contains($0.id) }
+        // Sort by book number in series collections
+        if group.autoGroupType == .series {
+            return filtered.sorted { a, b in
+                let numA = Double(a.bookNumber)
+                let numB = Double(b.bookNumber)
+                switch (numA, numB) {
+                case (.some(let na), .some(let nb)):
+                    return na < nb
+                case (.some, .none):
+                    return true   // numbered books first
+                case (.none, .some):
+                    return false
+                case (.none, .none):
+                    return a.title.localizedCaseInsensitiveCompare(b.title) == .orderedAscending
+                }
+            }
+        }
+        return filtered
     }
 
     var booksNotInGroup: [Book] {
@@ -79,6 +98,13 @@ struct GroupDetailView: View {
                             }
                             .padding(.vertical, 4)
                         }
+                        .contextMenu {
+                            Button {
+                                bookToEdit = book
+                            } label: {
+                                Label("Edit Book Info", systemImage: "pencil")
+                            }
+                        }
                     }
                     .onDelete { offsets in
                         for i in offsets {
@@ -106,6 +132,13 @@ struct GroupDetailView: View {
                                 }
                             }
                             .buttonStyle(.plain)
+                            .contextMenu {
+                                Button {
+                                    bookToEdit = book
+                                } label: {
+                                    Label("Edit Book Info", systemImage: "pencil")
+                                }
+                            }
                         }
                     }
                     .padding(12)
@@ -127,6 +160,10 @@ struct GroupDetailView: View {
         }
         .sheet(isPresented: $showingAddBooks) {
             AddBooksToGroupSheet(group: group)
+                .environmentObject(libraryManager)
+        }
+        .sheet(item: $bookToEdit) { book in
+            BookEditView(book: book)
                 .environmentObject(libraryManager)
         }
     }

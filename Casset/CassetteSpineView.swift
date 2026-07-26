@@ -18,11 +18,26 @@ struct CassetteSpineView: View {
         return UIImage(contentsOfFile: url.path)
     }
 
+    private var hasSubtitle: Bool { !book.subtitle.isEmpty }
+
     private var titleSize: CGFloat {
         let length = book.title.count
+        if hasSubtitle {
+            // Smaller title when subtitle needs space below
+            if length > 50 { return 12 }
+            if length > 30 { return 14 }
+            return 16
+        }
         if length > 60 { return 15 }
         if length > 40 { return 17 }
         return 20
+    }
+
+    private var subtitleSize: CGFloat {
+        let length = book.subtitle.count
+        if length > 60 { return 8 }
+        if length > 40 { return 9 }
+        return 10
     }
 
     private var lineColor: Color { colorScheme == .dark ? .white : .black }
@@ -90,15 +105,25 @@ struct CassetteSpineView: View {
 
                     // Colored middle: title, divider, author, play
                     HStack(spacing: 0) {
-                        // Big title
-                        Text(book.title)
-                            .font(.system(size: titleSize, weight: .bold))
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.75)
-                            .foregroundStyle(textColor)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.leading, 12)
-                            .padding(.trailing, 8)
+                        // Big title + optional subtitle
+                        VStack(alignment: .leading, spacing: hasSubtitle ? 0 : 1) {
+                            Text(book.title)
+                                .font(.system(size: titleSize, weight: .bold))
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.5)
+                                .foregroundStyle(textColor)
+                            if hasSubtitle {
+                                Text(book.subtitle)
+                                    .font(.system(size: subtitleSize, weight: .medium))
+                                    .lineLimit(2)
+                                    .minimumScaleFactor(0.5)
+                                    .foregroundStyle(textColor.opacity(0.7))
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .layoutPriority(1)
+                        .padding(.leading, 12)
+                        .padding(.trailing, 8)
 
                         // Short divider
                         textColor.opacity(0.6)
@@ -113,6 +138,7 @@ struct CassetteSpineView: View {
                                         Text(part)
                                             .font(.system(size: 10, weight: .medium))
                                             .lineLimit(1)
+                                            .minimumScaleFactor(0.7)
                                             .foregroundStyle(textColor.opacity(0.8))
                                     }
                                 }
@@ -147,6 +173,15 @@ struct CassetteSpineView: View {
         .frame(maxWidth: .infinity)
         .aspectRatio(5.5, contentMode: .fit)
         .clipShape(Rectangle())
+        .overlay(alignment: .topTrailing) {
+            if !book.bookNumber.isEmpty {
+                Text(book.bookNumber)
+                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(textColor.opacity(0.7))
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+            }
+        }
         .overlay(
             Rectangle()
                 .strokeBorder(lineColor.opacity(0.5), lineWidth: lineWidth)

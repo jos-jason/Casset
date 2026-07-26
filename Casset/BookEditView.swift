@@ -8,8 +8,10 @@ struct BookEditView: View {
     let book: Book
 
     @State private var title: String
+    @State private var subtitle: String
     @State private var author: String
     @State private var series: String
+    @State private var bookNumber: String
     @State private var genre: String
     @State private var useCustomColor: Bool
     @State private var customColor: Color
@@ -48,8 +50,10 @@ struct BookEditView: View {
     init(book: Book) {
         self.book = book
         _title = State(initialValue: book.title)
+        _subtitle = State(initialValue: book.subtitle)
         _author = State(initialValue: book.author)
         _series = State(initialValue: book.series)
+        _bookNumber = State(initialValue: book.bookNumber)
         _genre = State(initialValue: book.genre)
         _useCustomColor = State(initialValue: book.customColorHex != nil)
         _customColor = State(initialValue: Self.color(from: book.customColorHex) ?? Color(white: 0.3))
@@ -72,8 +76,10 @@ struct BookEditView: View {
             Form {
                 Section("Book Info") {
                     TextField("Title", text: $title)
+                    TextField("Subtitle", text: $subtitle)
                     TextField("Author", text: $author)
                     TextField("Series", text: $series)
+                    TextField("Book Number", text: $bookNumber)
                 }
 
                 Section("Genre") {
@@ -109,6 +115,18 @@ struct BookEditView: View {
                                 showTextColorPicker = true
                             } label: {
                                 Label("Pick from Cover Art", systemImage: "eyedropper")
+                            }
+                        }
+                        if !series.isEmpty {
+                            Button {
+                                let hex = Self.hexString(from: customTextColor)
+                                libraryManager.applyColorsToSeries(
+                                    series: series,
+                                    textColorHex: hex,
+                                    boxColorHex: nil
+                                )
+                            } label: {
+                                Label("Apply Text Color to Series", systemImage: "paintbrush")
                             }
                         }
                     }
@@ -263,8 +281,10 @@ struct BookEditView: View {
                         libraryManager.updateBookDetails(
                             bookID: book.id,
                             title: title,
+                            subtitle: subtitle,
                             author: author,
                             series: series,
+                            bookNumber: bookNumber,
                             genre: genre,
                             customColorHex: useCustomColor ? Self.hexString(from: customColor) : nil,
                             customTextColorHex: useCustomTextColor ? Self.hexString(from: customTextColor) : nil,

@@ -72,6 +72,7 @@ struct BookmarkNotesView: View {
                     )
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .searchable(text: $searchText, prompt: "Search notes...")
             .navigationTitle("Bookmark Notes")
             .navigationBarTitleDisplayMode(.inline)
@@ -230,6 +231,7 @@ struct BookmarkNotesView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                 }
+                
             }
             .sheet(isPresented: $showExportSheet) {
                 ExportNotesView(exportText: exportText, exportFormat: $exportFormat)
@@ -359,12 +361,13 @@ struct BookmarkNotesView: View {
 }
 
 struct BookmarkNoteCard: View {
-    @State var bookmark: Bookmark
+    let bookmark: Bookmark
     let colorScheme: ColorScheme
     let onUpdate: (Bookmark) -> Void
     
-    @State private var isEditing = false
+    @State private var noteText: String = ""
     @FocusState private var isFocused: Bool
+    @State private var debounceTask: Task<Void, Never>?
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -391,13 +394,32 @@ struct BookmarkNoteCard: View {
             }
             
             // Note content
-            TextField("Add a note...", text: $bookmark.note, axis: .vertical)
+            TextField("Add a note...", text: $noteText, axis: .vertical)
                 .textFieldStyle(.plain)
-                .lineLimit(3...10)
+                .lineLimit(3...)
                 .focused($isFocused)
                 .font(.body)
-                .onChange(of: bookmark.note) { oldValue, newValue in
-                    onUpdate(bookmark)
+                .onAppear {
+                    noteText = bookmark.note
+                }
+                .onChange(of: noteText) { oldValue, newValue in
+                    debounceTask?.cancel()
+                    debounceTask = Task {
+                        try? await Task.sleep(for: .milliseconds(500))
+                        guard !Task.isCancelled else { return }
+                        var updated = bookmark
+                        updated.note = newValue
+                        onUpdate(updated)
+                    }
+                }
+                .onDisappear {
+                    // Flush any pending changes immediately when leaving
+                    if noteText != bookmark.note {
+                        debounceTask?.cancel()
+                        var updated = bookmark
+                        updated.note = noteText
+                        onUpdate(updated)
+                    }
                 }
         }
         .padding(.vertical, 8)

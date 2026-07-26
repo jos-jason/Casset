@@ -60,16 +60,78 @@ class LibraryManager: ObservableObject {
         Task {
             defer { url.stopAccessingSecurityScopedResource() }
             let metadata = await extractMetadata(from: url, bookID: book.id)
-            if let i = books.firstIndex(where: { $0.id == book.id }) {
-                if let artwork = metadata.artworkFilename {
-                    books[i].artworkFilename = artwork
-                }
-                if !metadata.genre.isEmpty {
-                    books[i].genre = metadata.genre
-                }
-                save()
+            await MainActor.run {
+                applyMetadata(metadata, toBookID: book.id)
             }
         }
+    }
+
+    /// Add a book from a URL that is already within an active security scope
+    /// (e.g. a file discovered inside a user-selected folder).
+    /// `folderCoverData` is optional pre-read image data from a cover file in the folder.
+    func addBook(from url: URL, securityScopedParent: URL, folderCoverData: Data? = nil) {
+        guard let bookmarkData = try? url.bookmarkData(
+            options: .minimalBookmark,
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        ) else {
+            return
+        }
+
+        let title = url.deletingPathExtension().lastPathComponent
+        let book  = Book(title: title, bookmarkData: bookmarkData)
+        books.append(book)
+        save()
+
+        // Metadata extraction happens asynchronously; the parent folder's
+        // security scope may be released before the Task runs, so we resolve
+        // the bookmark to re-acquire access inside the Task.
+        Task {
+            var isStale = false
+            guard let resolvedURL = try? URL(
+                resolvingBookmarkData: bookmarkData,
+                options: .withoutUI,
+                relativeTo: nil,
+                bookmarkDataIsStale: &isStale
+            ) else { return }
+            guard resolvedURL.startAccessingSecurityScopedResource() else { return }
+            defer { resolvedURL.stopAccessingSecurityScopedResource() }
+
+            let metadata = await extractMetadata(from: resolvedURL, bookID: book.id)
+            await MainActor.run {
+                applyMetadata(metadata, toBookID: book.id, folderCoverData: folderCoverData)
+            }
+        }
+    }
+
+    /// Apply extracted metadata fields to a book in the library.
+    /// `folderCoverData` is used as a fallback when no embedded artwork was found.
+    private func applyMetadata(_ metadata: ExtractedMetadata, toBookID bookID: UUID, folderCoverData: Data? = nil) {
+        guard let i = books.firstIndex(where: { $0.id == bookID }) else { return }
+        if let artwork = metadata.artworkFilename {
+            books[i].artworkFilename = artwork
+        } else if let coverData = folderCoverData {
+            // No embedded artwork — use the folder cover image as fallback
+            let filename = "\(bookID.uuidString).jpg"
+            let destURL = FileManager.default
+                .urls(for: .documentDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent(filename)
+            if (try? coverData.write(to: destURL)) != nil {
+                books[i].artworkFilename = filename
+            }
+        }
+        if !metadata.genre.isEmpty {
+            books[i].genre = metadata.genre
+        }
+        if !metadata.author.isEmpty && books[i].author.isEmpty {
+            books[i].author = metadata.author
+        }
+        // Use album name as the book title if available (better than filename)
+        if !metadata.albumName.isEmpty {
+            books[i].title = metadata.albumName
+        }
+        save()
+        syncAutoCollections()
     }
 
     func removeBook(at offsets: IndexSet) {
@@ -254,17 +316,33 @@ class LibraryManager: ObservableObject {
 
     // MARK: Book Details
 
-    func updateBookDetails(bookID: UUID, title: String, author: String, series: String, genre: String, customColorHex: String? = nil, customTextColorHex: String? = nil, boxArtPrompt: String = "") {
+    func updateBookDetails(bookID: UUID, title: String, subtitle: String = "", author: String, series: String, bookNumber: String = "", genre: String, customColorHex: String? = nil, customTextColorHex: String? = nil, boxArtPrompt: String = "") {
         guard let i = books.firstIndex(where: { $0.id == bookID }) else { return }
         books[i].title = title
+        books[i].subtitle = subtitle
         books[i].author = author
         books[i].series = series
+        books[i].bookNumber = bookNumber
         books[i].genre = genre
         books[i].customColorHex = customColorHex
         books[i].customTextColorHex = customTextColorHex
         books[i].boxArtPrompt = boxArtPrompt
         save()
         syncAutoCollections()
+    }
+
+    /// Applies custom text and/or box colors to all books sharing the same series.
+    func applyColorsToSeries(series: String, textColorHex: String?, boxColorHex: String?) {
+        guard !series.isEmpty else { return }
+        for i in books.indices where books[i].series == series {
+            if let hex = textColorHex {
+                books[i].customTextColorHex = hex
+            }
+            if let hex = boxColorHex {
+                books[i].customColorHex = hex
+            }
+        }
+        save()
     }
 
     func saveCassetteBoxArt(bookID: UUID, image: UIImage) {
@@ -349,11 +427,22 @@ class LibraryManager: ObservableObject {
         save()
     }
 
+    // MARK: Import from .casset
+
+    /// Adds a fully-constructed Book (from a .casset import) to the library.
+    func addImportedBook(_ book: Book) {
+        books.append(book)
+        save()
+        syncAutoCollections()
+    }
+
     // MARK: Metadata Extraction
 
     private struct ExtractedMetadata {
         var artworkFilename: String?
         var genre: String = ""
+        var author: String = ""
+        var albumName: String = ""   // Often the book title in audiobook files
     }
 
     private func extractMetadata(from url: URL, bookID: UUID) async -> ExtractedMetadata {
@@ -379,6 +468,20 @@ class LibraryManager: ObservableObject {
                let genre = try? await item.load(.stringValue),
                !genre.isEmpty {
                 result.genre = genre
+            }
+
+            // Extract author (artist)
+            if item.commonKey == .commonKeyArtist,
+               let artist = try? await item.load(.stringValue),
+               !artist.isEmpty {
+                result.author = artist
+            }
+
+            // Extract album name (often the book title for audiobooks)
+            if item.commonKey == .commonKeyAlbumName,
+               let album = try? await item.load(.stringValue),
+               !album.isEmpty {
+                result.albumName = album
             }
         }
 
@@ -452,7 +555,19 @@ class LibraryManager: ObservableObject {
                     if book2.series.isEmpty { return true }
                     return book1.series.localizedCaseInsensitiveCompare(book2.series) == .orderedAscending
                 }
-                // Within same series, sort by title
+                // Within same series, sort by book number then title
+                let num1 = Double(book1.bookNumber)
+                let num2 = Double(book2.bookNumber)
+                switch (num1, num2) {
+                case (.some(let n1), .some(let n2)):
+                    if n1 != n2 { return n1 < n2 }
+                case (.some, .none):
+                    return true
+                case (.none, .some):
+                    return false
+                case (.none, .none):
+                    break
+                }
                 return book1.title.localizedCaseInsensitiveCompare(book2.title) == .orderedAscending
             }
         }
