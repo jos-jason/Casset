@@ -264,15 +264,44 @@ class AudioPlayerManager: ObservableObject {
 
     // MARK: - Playback
 
-    func load(url: URL, bookID: UUID) {
-        // NEW: If this is already the current book, don't reload the audio
+    enum LoadError: LocalizedError {
+        case alreadyLoaded
+        case audioSessionFailed(Error)
+        case playerInitFailed(Error)
+
+        var errorDescription: String? {
+            switch self {
+            case .alreadyLoaded:
+                return nil
+            case .audioSessionFailed(let error):
+                return "Audio session failed: \(error.localizedDescription)"
+            case .playerInitFailed(let error):
+                return "Could not load audio file: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    /// Loads audio from the given URL. Returns nil on success, or a LoadError on failure.
+    @discardableResult
+    func load(url: URL, bookID: UUID) -> LoadError? {
+        // If this is already the current book, don't reload the audio
         if let current = currentBookID,
            current == bookID,
            let player = player {
             duration    = player.duration
             currentTime = player.currentTime
             isPlaying   = player.isPlaying
-            return
+            return .alreadyLoaded
+        }
+
+        // Re-activate the audio session to recover from reboots / interruptions
+        do {
+            let audioSession = AVAudioSession.sharedInstance()
+            try audioSession.setCategory(.playback, mode: .spokenAudio, options: [])
+            try audioSession.setActive(true)
+        } catch {
+            print("Failed to reactivate audio session: \(error)")
+            return .audioSessionFailed(error)
         }
 
         do {
@@ -299,8 +328,10 @@ class AudioPlayerManager: ObservableObject {
             }
 
             Task { await loadChapters(from: url) }
+            return nil
         } catch {
             print("Failed to load audio: \(error)")
+            return .playerInitFailed(error)
         }
     }
 

@@ -26,12 +26,45 @@ struct Book: Identifiable, Codable {
 
     func resolvedURL() -> URL? {
         var isStale = false
-        return try? URL(
+        guard let url = try? URL(
             resolvingBookmarkData: bookmarkData,
             options: .withoutUI,
             relativeTo: nil,
             bookmarkDataIsStale: &isStale
-        )
+        ) else { return nil }
+
+        // If the bookmark is stale, the URL may still work but we should
+        // note it for diagnostics. The caller (LibraryManager) can refresh
+        // the bookmark data when it detects staleness.
+        if isStale {
+            print("⚠️ Bookmark is stale for: \(url.lastPathComponent)")
+        }
+        return url
+    }
+
+    /// Attempts to resolve the bookmark and refresh it if stale.
+    /// Returns the resolved URL and updated bookmark data (if refreshed), or nil on failure.
+    mutating func resolveAndRefreshBookmark() -> URL? {
+        var isStale = false
+        guard let url = try? URL(
+            resolvingBookmarkData: bookmarkData,
+            options: .withoutUI,
+            relativeTo: nil,
+            bookmarkDataIsStale: &isStale
+        ) else { return nil }
+
+        if isStale {
+            // Re-create the bookmark from the resolved URL
+            if let newData = try? url.bookmarkData(
+                options: [],
+                includingResourceValuesForKeys: nil,
+                relativeTo: nil
+            ) {
+                bookmarkData = newData
+                print("🔄 Refreshed stale bookmark for: \(url.lastPathComponent)")
+            }
+        }
+        return url
     }
 
     func artworkURL() -> URL? {

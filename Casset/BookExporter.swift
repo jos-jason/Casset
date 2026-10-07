@@ -218,7 +218,7 @@ enum BookExporter {
 
             // Create a bookmark for the copied audio file
             guard let bookmarkData = try? audioDest.bookmarkData(
-                options: .minimalBookmark,
+                options: [],
                 includingResourceValuesForKeys: nil,
                 relativeTo: nil
             ) else {

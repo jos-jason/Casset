@@ -44,7 +44,7 @@ class LibraryManager: ObservableObject {
     func addBook(from url: URL) {
         guard url.startAccessingSecurityScopedResource() else { return }
         guard let bookmarkData = try? url.bookmarkData(
-            options: .minimalBookmark,
+            options: [],
             includingResourceValuesForKeys: nil,
             relativeTo: nil
         ) else {
@@ -71,7 +71,7 @@ class LibraryManager: ObservableObject {
     /// `folderCoverData` is optional pre-read image data from a cover file in the folder.
     func addBook(from url: URL, securityScopedParent: URL, folderCoverData: Data? = nil) {
         guard let bookmarkData = try? url.bookmarkData(
-            options: .minimalBookmark,
+            options: [],
             includingResourceValuesForKeys: nil,
             relativeTo: nil
         ) else {
@@ -294,6 +294,31 @@ class LibraryManager: ObservableObject {
     }
 
     // MARK: Playback info
+
+    /// Resolves the bookmark for a book, refreshing it if stale. Returns the URL or nil.
+    func resolveAndRefreshBookmark(bookID: UUID) -> URL? {
+        guard let i = books.firstIndex(where: { $0.id == bookID }) else { return nil }
+        guard let url = books[i].resolveAndRefreshBookmark() else { return nil }
+        save()  // persist refreshed bookmark data if it changed
+        return url
+    }
+
+    /// Repairs a book's bookmark data from a freshly-picked URL (document picker).
+    /// Preserves all metadata, bookmarks, and playback position.
+    func repairBookmark(bookID: UUID, from url: URL) -> Bool {
+        guard let i = books.firstIndex(where: { $0.id == bookID }) else { return false }
+        guard url.startAccessingSecurityScopedResource() else { return false }
+        defer { url.stopAccessingSecurityScopedResource() }
+        guard let newData = try? url.bookmarkData(
+            options: [],
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        ) else { return false }
+        books[i].bookmarkData = newData
+        save()
+        print("🔧 Repaired bookmark for: \(url.lastPathComponent)")
+        return true
+    }
 
     func updateLastPosition(bookID: UUID, position: Double) {
         guard let i = books.firstIndex(where: { $0.id == bookID }) else { return }
