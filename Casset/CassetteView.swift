@@ -121,7 +121,7 @@ final class SpinningReelUIView: UIView {
     private var didSetup = false
 
     var reelColor: UIColor = .white {
-        didSet { applyColor() }
+        didSet { if reelColor != oldValue { applyColor() } }
     }
 
     override init(frame: CGRect) {
@@ -206,11 +206,11 @@ final class SpinningReelUIView: UIView {
     // MARK: – animation control
 
     func startSpinning(speed: Double) {
-        currentSpeed = speed
         guard !isSpinning else {
-            updateAnimationSpeed()
+            updateSpeed(speed)
             return
         }
+        currentSpeed = speed
         isSpinning = true
         addRotationAnimation()
     }
@@ -225,6 +225,9 @@ final class SpinningReelUIView: UIView {
     }
 
     func updateSpeed(_ speed: Double) {
+        // Re-adding the animation on every SwiftUI update is wasted work, so
+        // only touch it when the speed actually changed.
+        guard speed != currentSpeed else { return }
         currentSpeed = speed
         if isSpinning { updateAnimationSpeed() }
     }
@@ -300,8 +303,8 @@ private struct SpinningReelRepresentable: UIViewRepresentable {
             uiView.startSpinning(speed: playbackSpeed)
         } else {
             uiView.stopSpinning()
+            uiView.updateSpeed(playbackSpeed)
         }
-        uiView.updateSpeed(playbackSpeed)
     }
 }
 
@@ -309,6 +312,7 @@ private struct SpinningReelRepresentable: UIViewRepresentable {
 struct ClassicCassetteView: View {
     var isPlaying:  Bool
     var coverImage: UIImage?
+    var blurredCoverImage: UIImage? = nil
     var actionTrigger: UUID
     var playbackSpeed: Double = 1.0
     
@@ -323,13 +327,21 @@ struct ClassicCassetteView: View {
             // Background: Cover art with blur mirror effect
             if let img = coverImage {
                 ZStack {
-                    // Blurred background fill
-                    Image(uiImage: img)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 310, height: 170)
-                        .blur(radius: 40)
-                        .clipShape(RoundedRectangle(cornerRadius: 22))
+                    // Blurred background fill (pre-rendered once when available)
+                    if let blurred = blurredCoverImage {
+                        Image(uiImage: blurred)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 310, height: 170)
+                            .clipShape(RoundedRectangle(cornerRadius: 22))
+                    } else {
+                        Image(uiImage: img)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 310, height: 170)
+                            .blur(radius: 40)
+                            .clipShape(RoundedRectangle(cornerRadius: 22))
+                    }
                     
                     // Clear center image fitted to height
                     Image(uiImage: img)
@@ -551,6 +563,10 @@ struct BoldCassetteView: View {
 struct CassetteView: View {
     var isPlaying:     Bool
     var coverImage:    UIImage? = nil
+    /// Pre-blurred cover for the classic cassette background (310×170).
+    var blurredCassetteImage: UIImage? = nil
+    /// Pre-blurred cover for the art-only view (330×330).
+    var blurredArtImage: UIImage? = nil
     var actionTrigger: UUID     = UUID()
     var showArtOnly:   Bool     = false
 
@@ -569,12 +585,20 @@ struct CassetteView: View {
             if showArtOnly, let img = coverImage {
                 ZStack {
                     // Background: Cover art with blur mirror effect
-                    Image(uiImage: img)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 330, height: 330)
-                        .blur(radius: 40)
-                        .clipShape(RoundedRectangle(cornerRadius: 28))
+                    if let blurred = blurredArtImage {
+                        Image(uiImage: blurred)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 330, height: 330)
+                            .clipShape(RoundedRectangle(cornerRadius: 28))
+                    } else {
+                        Image(uiImage: img)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 330, height: 330)
+                            .blur(radius: 40)
+                            .clipShape(RoundedRectangle(cornerRadius: 28))
+                    }
                     
                     // Main cover image
                     Image(uiImage: img)
@@ -592,7 +616,7 @@ struct CassetteView: View {
             } else {
                 switch cassetteMode {
                 case .classic:
-                    ClassicCassetteView(isPlaying: isPlaying, coverImage: resolvedCover, actionTrigger: actionTrigger, playbackSpeed: playbackSpeed)
+                    ClassicCassetteView(isPlaying: isPlaying, coverImage: resolvedCover, blurredCoverImage: showCoverOnCassette ? blurredCassetteImage : nil, actionTrigger: actionTrigger, playbackSpeed: playbackSpeed)
                 case .realistic:
                     RealisticCassetteView(isPlaying: isPlaying, coverImage: resolvedCover, actionTrigger: actionTrigger, playbackSpeed: playbackSpeed)
                 case .bold:

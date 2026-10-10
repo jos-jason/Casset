@@ -7,8 +7,7 @@ struct MiniPlayerBar: View {
     @EnvironmentObject var playerManager: AudioPlayerManager
 
     var coverImage: UIImage? {
-        guard let artURL = book.bestCoverArtURL() else { return nil }
-        return UIImage(contentsOfFile: artURL.path)
+        ImageCache.image(at: book.bestCoverArtURL(), maxPointSize: 80)
     }
 
     var body: some View {
@@ -35,14 +34,7 @@ struct MiniPlayerBar: View {
                     .font(.subheadline)
                     .lineLimit(1)
 
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.secondary.opacity(0.2))
-                        .frame(height: 3)
-                    Capsule()
-                        .fill(Color.primary.opacity(0.6))
-                        .frame(width: progressWidth, height: 3)
-                }
+                MiniProgressBar(clock: playerManager.clock, duration: playerManager.duration)
             }
 
             Spacer()
@@ -89,8 +81,26 @@ struct MiniPlayerBar: View {
         }
     }
 
+}
+
+/// Observes only the playback clock, so time ticks redraw just this bar.
+private struct MiniProgressBar: View {
+    @ObservedObject var clock: PlaybackClock
+    var duration: Double
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            Capsule()
+                .fill(Color.secondary.opacity(0.2))
+                .frame(height: 3)
+            Capsule()
+                .fill(Color.primary.opacity(0.6))
+                .frame(width: progressWidth, height: 3)
+        }
+    }
+
     private var progressWidth: CGFloat {
-        let progress = playerManager.progress
+        let progress = duration > 0 ? clock.currentTime / duration : 0
         return max(0, min(1, progress)) * 80   // 0–80pt bar
     }
 }

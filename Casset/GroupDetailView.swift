@@ -65,7 +65,7 @@ struct GroupDetailView: View {
                             HStack(spacing: 14) {
                                 Group {
                                     if let artURL = book.bestCoverArtURL(),
-                                       let uiImage = UIImage(contentsOfFile: artURL.path) {
+                                       let uiImage = ImageCache.image(at: artURL, maxPointSize: 112) {
                                         Image(uiImage: uiImage)
                                             .resizable()
                                             .scaledToFill()
@@ -115,7 +115,7 @@ struct GroupDetailView: View {
             } else {
                 // Cassette spine style
                 ScrollView {
-                    VStack(spacing: 10) {
+                    LazyVStack(spacing: 10) {
                         ForEach(booksInGroup) { book in
                             NavigationLink(
                                 destination: PlayerView(book: book)
@@ -214,7 +214,7 @@ struct AddBooksToGroupSheet: View {
                                 HStack(spacing: 14) {
                                     Group {
                                         if let artURL = book.bestCoverArtURL(),
-                                           let uiImage = UIImage(contentsOfFile: artURL.path) {
+                                           let uiImage = ImageCache.image(at: artURL, maxPointSize: 88) {
                                             Image(uiImage: uiImage)
                                                 .resizable()
                                                 .scaledToFill()

@@ -66,9 +66,7 @@ struct SettingsView: View {
                         HStack {
                             Text("Time Remaining")
                             Spacer()
-                            Text(formatSleepTime(playerManager.sleepTimerRemaining))
-                                .foregroundStyle(.primary)
-                                .monospacedDigit()
+                            SleepTimerRemainingText(clock: playerManager.clock, format: formatSleepTime)
                         }
                         
                         Button("Cancel Timer") {
@@ -154,3 +152,16 @@ struct SettingsView: View {
     }
 }
 
+
+/// Observes only the playback clock, so the once-a-second countdown doesn't
+/// re-render the whole settings screen.
+private struct SleepTimerRemainingText: View {
+    @ObservedObject var clock: PlaybackClock
+    let format: (TimeInterval) -> String
+
+    var body: some View {
+        Text(format(clock.sleepTimerRemaining))
+            .foregroundStyle(.primary)
+            .monospacedDigit()
+    }
+}

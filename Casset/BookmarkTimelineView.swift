@@ -2,11 +2,21 @@ import SwiftUI
 
 struct BookmarkTimelineView: View {
     @EnvironmentObject var playerManager: AudioPlayerManager
+
+    var body: some View {
+        // Only the inner view observes the fast-ticking clock.
+        BookmarkTimelineContent(playerManager: playerManager, clock: playerManager.clock)
+    }
+}
+
+private struct BookmarkTimelineContent: View {
+    let playerManager: AudioPlayerManager
+    @ObservedObject var clock: PlaybackClock
     @Environment(\.colorScheme) var colorScheme
 
     var nearbyBookmarks: [Bookmark] {
         playerManager.bookmarks.filter {
-            abs(playerManager.currentTime - $0.time) <= 10
+            abs(clock.currentTime - $0.time) <= 10
         }
     }
 

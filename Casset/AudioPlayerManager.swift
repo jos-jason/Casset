@@ -18,6 +18,17 @@ struct Chapter: Identifiable {
     var startTime: Double
 }
 
+/// The fast-changing playback values, kept in their own observable object.
+///
+/// `currentTime` changes twice a second while playing. When it lived on
+/// `AudioPlayerManager`, every view observing the manager — the whole library,
+/// every cassette spine, the player screen — re-rendered twice a second. Only
+/// the few small views that actually display the time observe this instead.
+final class PlaybackClock: ObservableObject {
+    @Published var currentTime: Double = 0
+    @Published var sleepTimerRemaining: TimeInterval = 0
+}
+
 class AudioPlayerManager: ObservableObject {
     /// Shared instance for App Intents to access when the app is running
     static weak var shared: AudioPlayerManager?
@@ -26,13 +37,24 @@ class AudioPlayerManager: ObservableObject {
     @Published var isPlaying: Bool = false
     @Published var bookmarks: [Bookmark] = []     // current book only
     @Published var chapters: [Chapter] = []
-    @Published var currentTime: Double = 0
     @Published var duration: Double = 1
     @Published var currentBookID: UUID?
     
+    let clock = PlaybackClock()
+
+    /// Current playback position. Stored on `clock` (not published here) so
+    /// that time ticks don't re-render views observing the manager.
+    var currentTime: Double {
+        get { clock.currentTime }
+        set { if clock.currentTime != newValue { clock.currentTime = newValue } }
+    }
+
     // Sleep Timer
     @Published var sleepTimerEndTime: Date?
-    @Published var sleepTimerRemaining: TimeInterval = 0
+    var sleepTimerRemaining: TimeInterval {
+        get { clock.sleepTimerRemaining }
+        set { if clock.sleepTimerRemaining != newValue { clock.sleepTimerRemaining = newValue } }
+    }
 
     weak var libraryManager: LibraryManager?
 
@@ -42,6 +64,9 @@ class AudioPlayerManager: ObservableObject {
     private var lastSavedTime: Double = -1
     private let saveInterval: Double = 5 // seconds between position saves
     private var wasPlayingBeforeInterruption: Bool = false
+    private var isInBackground = false
+    private var cachedArtwork: (bookID: UUID, image: UIImage?)?
+    private var appliedRate: Float?
 
     var skipDuration: Double {
         let value = UserDefaults.standard.double(forKey: "skipDuration")
@@ -69,6 +94,7 @@ class AudioPlayerManager: ObservableObject {
         setupRemoteTransportControls()
         setupSiriIntentHandlers()
         observeSettingsChanges()
+        observeAppLifecycle()
     }
     
     // MARK: - Background Audio Setup
@@ -212,6 +238,10 @@ class AudioPlayerManager: ObservableObject {
     private func setupSiriIntentHandlers() { }
     
     private func updateNowPlayingInfo(bookTitle: String? = nil, artwork: UIImage? = nil) {
+        // The clock isn't refreshed while backgrounded, so sync it first —
+        // lock screen controls call this while the app is in the background.
+        if let player { currentTime = player.currentTime }
+
         var nowPlayingInfo = [String: Any]()
         
         // Title and artist
@@ -239,13 +269,14 @@ class AudioPlayerManager: ObservableObject {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
     }
     
-    // Helper to load artwork from book
+    // Helper to load artwork from book. Cached per book: this runs on every
+    // play/pause/skip, and re-reading the cover from disk each time adds up.
     private func loadArtwork(for book: Book) -> UIImage? {
-        guard let artworkURL = book.bestCoverArtURL(),
-              let data = try? Data(contentsOf: artworkURL),
-              let image = UIImage(data: data) else {
-            return nil
+        if let cached = cachedArtwork, cached.bookID == book.id {
+            return cached.image
         }
+        let image = ImageCache.image(at: book.bestCoverArtURL(), maxPointSize: 600)
+        cachedArtwork = (book.id, image)
         return image
     }
 
@@ -253,11 +284,32 @@ class AudioPlayerManager: ObservableObject {
         NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
             .sink { [weak self] _ in
                 guard let self else { return }
-                let newRate = self.playbackSpeed
-                if let player = self.player {
-                    player.enableRate = true
-                    player.rate = Float(newRate)
-                }
+                // This fires on every UserDefaults write, not just speed changes.
+                let newRate = Float(self.playbackSpeed)
+                guard newRate != self.appliedRate, let player = self.player else { return }
+                self.appliedRate = newRate
+                player.enableRate = true
+                player.rate = newRate
+            }
+            .store(in: &cancellables)
+    }
+
+    /// While the app is in the background nothing is on screen, so the clock
+    /// doesn't need refreshing twice a second; it only ticks to save position.
+    private func observeAppLifecycle() {
+        NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.isInBackground = true
+                if self.isPlaying { self.startTimer() }
+            }
+            .store(in: &cancellables)
+        NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.isInBackground = false
+                if let player = self.player { self.currentTime = player.currentTime }
+                if self.isPlaying { self.startTimer() }
             }
             .store(in: &cancellables)
     }
@@ -294,6 +346,16 @@ class AudioPlayerManager: ObservableObject {
             return .alreadyLoaded
         }
 
+        // Switching books: commit the outgoing book's position to the library.
+        if player != nil, currentBookID != nil {
+            if isPlaying {
+                player?.pause()
+                isPlaying = false
+                stopTimer()
+            }
+            saveCurrentPosition()
+        }
+
         // Re-activate the audio session to recover from reboots / interruptions
         do {
             let audioSession = AVAudioSession.sharedInstance()
@@ -309,9 +371,11 @@ class AudioPlayerManager: ObservableObject {
             player?.prepareToPlay()
             player?.enableRate = true
             player?.rate = Float(playbackSpeed)
+            appliedRate = Float(playbackSpeed)
             isPlaying = false
             duration = player?.duration ?? 1
             currentTime = 0
+            lastSavedTime = -1
             chapters = []
             currentBookID = bookID
 
@@ -364,7 +428,7 @@ class AudioPlayerManager: ObservableObject {
         guard let player else { return }
         player.currentTime = min(player.currentTime + skipDuration, player.duration)
         currentTime = player.currentTime
-        saveCurrentPosition()
+        stashCurrentPosition()
         
         // Update Now Playing info with new position
         if let library = libraryManager,
@@ -379,7 +443,7 @@ class AudioPlayerManager: ObservableObject {
         guard let player else { return }
         player.currentTime = max(player.currentTime - skipDuration, 0)
         currentTime = player.currentTime
-        saveCurrentPosition()
+        stashCurrentPosition()
         
         // Update Now Playing info with new position
         if let library = libraryManager,
@@ -419,7 +483,7 @@ class AudioPlayerManager: ObservableObject {
     func seekTo(_ time: Double) {
         player?.currentTime = time
         currentTime = time
-        saveCurrentPosition()
+        stashCurrentPosition()
         
         // Update Now Playing info with new position
         if let library = libraryManager,
@@ -446,30 +510,49 @@ class AudioPlayerManager: ObservableObject {
         libraryManager?.updateBookmarks(bookID: bookID, bookmarks: bookmarks)
     }
 
-    /// Persists the current playback position to the library so it survives
-    /// app kills, crashes, and backgrounding.
+    /// Commits the current playback position to the library. Called at
+    /// natural stopping points (pause, interruption, backgrounding, switching
+    /// books); rewrites the library, so it isn't used for periodic saves.
     func saveCurrentPosition() {
+        guard let bookID = currentBookID, let player = player else { return }
+        libraryManager?.updateLastPosition(bookID: bookID, position: player.currentTime)
+    }
+
+    /// Cheaply records the position in a tiny file so it survives app kills
+    /// and crashes during playback. Re-saving the whole library (and
+    /// refreshing every library view) every few seconds used to drain the
+    /// battery; the library picks this up on the next commit or launch.
+    private func stashCurrentPosition() {
         guard let bookID = currentBookID, let player = player else { return }
         let time = player.currentTime
         // Avoid redundant writes
         guard abs(time - lastSavedTime) > 0.5 else { return }
         lastSavedTime = time
-        libraryManager?.updateLastPosition(bookID: bookID, position: time)
+        PlaybackPositionStore.stash(bookID: bookID, position: time)
     }
 
     private func startTimer() {
         timer?.invalidate()
+        // Foreground: refresh the on-screen clock twice a second.
+        // Background: nothing is visible, so just wake up to save position.
+        let interval = isInBackground ? saveInterval : 0.5
         var tickCount: Int = 0
-        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+        let ticksPerSave = max(1, Int(saveInterval / interval))
+        let newTimer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             guard let self, let player = self.player else { return }
-            self.currentTime = player.currentTime
-            // Save position every ~5 seconds (every 10 ticks at 0.5s interval)
+            if !self.isInBackground {
+                self.currentTime = player.currentTime
+            }
             tickCount += 1
-            if tickCount >= Int(self.saveInterval / 0.5) {
+            if tickCount >= ticksPerSave {
                 tickCount = 0
-                self.saveCurrentPosition()
+                self.stashCurrentPosition()
             }
         }
+        // Tolerance lets iOS batch wakeups with other work.
+        newTimer.tolerance = interval * 0.2
+        RunLoop.main.add(newTimer, forMode: .default)
+        timer = newTimer
     }
 
     private func stopTimer() {
@@ -527,6 +610,7 @@ class AudioPlayerManager: ObservableObject {
                 }
             }
         }
+        sleepTimer?.tolerance = 0.2
     }
     
     func cancelSleepTimer() {

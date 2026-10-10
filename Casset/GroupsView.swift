@@ -35,7 +35,7 @@ struct CollectionCoverGrid: View {
                     ForEach(0..<4, id: \.self) { index in
                         if index < covers.count,
                            let artURL = covers[index].bestCoverArtURL(),
-                           let uiImage = UIImage(contentsOfFile: artURL.path) {
+                           let uiImage = ImageCache.image(at: artURL, maxPointSize: cellSize * 2) {
                             Image(uiImage: uiImage)
                                 .resizable()
                                 .scaledToFill()
@@ -291,7 +291,7 @@ struct GroupsView: View {
 
     private var cassetteBody: some View {
         ScrollView {
-            VStack(spacing: 10) {
+            LazyVStack(spacing: 10) {
                 if !libraryManager.manualGroups.isEmpty {
                     sectionHeader("Your Collections")
                     ForEach(libraryManager.manualGroups) { group in

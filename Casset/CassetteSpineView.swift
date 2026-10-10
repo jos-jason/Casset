@@ -8,14 +8,14 @@ struct CassetteSpineView: View {
     @State private var coverColors: CoverColors = ColorExtractor.defaultColors
     @Environment(\.colorScheme) private var colorScheme
 
+    // Cached and downsampled: these used to be decoded from disk at full
+    // resolution every time the view body ran.
     private var coverImage: UIImage? {
-        guard let artURL = book.bestCoverArtURL() else { return nil }
-        return UIImage(contentsOfFile: artURL.path)
+        ImageCache.image(at: book.bestCoverArtURL(), maxPointSize: 120)
     }
 
     private var cassetteBoxArtImage: UIImage? {
-        guard let url = book.cassetteBoxArtURL() else { return nil }
-        return UIImage(contentsOfFile: url.path)
+        ImageCache.image(at: book.cassetteBoxArtURL(), maxPointSize: 440)
     }
 
     private var hasSubtitle: Bool { !book.subtitle.isEmpty }
@@ -228,13 +228,13 @@ struct CassetteSpineView: View {
                     .strokeBorder(lineColor.opacity(0.6), lineWidth: lineWidth)
             )
             .onAppear {
-                if let img = coverImage {
-                    coverColors = ColorExtractor.extractColors(from: img, intensity: colorIntensity)
+                if let colors = ImageCache.coverColors(at: book.bestCoverArtURL(), intensity: colorIntensity) {
+                    coverColors = colors
                 }
             }
             .onChange(of: colorIntensity) {
-                if let img = coverImage {
-                    coverColors = ColorExtractor.extractColors(from: img, intensity: colorIntensity)
+                if let colors = ImageCache.coverColors(at: book.bestCoverArtURL(), intensity: colorIntensity) {
+                    coverColors = colors
                 }
             }
     }

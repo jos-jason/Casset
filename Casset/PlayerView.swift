@@ -20,6 +20,8 @@ struct PlayerView: View {
     @State private var isShowingCoverArt    = false
     @State private var loadErrorMessage: String?
     @State private var cachedCoverImage: UIImage?
+    @State private var cachedBlurredCassette: UIImage?
+    @State private var cachedBlurredArt: UIImage?
     @State private var isShowingRelinkPicker = false
 
     @AppStorage("showChapterTicker") var showChapterTicker: Bool = true
@@ -51,6 +53,8 @@ struct PlayerView: View {
                 CassetteView(
                     isPlaying: playerManager.isPlaying,
                     coverImage: cachedCoverImage,
+                    blurredCassetteImage: cachedBlurredCassette,
+                    blurredArtImage: cachedBlurredArt,
                     actionTrigger: cassetteActionTrigger,
                     showArtOnly: isShowingCoverArt
                 )
@@ -141,9 +145,12 @@ struct PlayerView: View {
         .onAppear {
             playerScreenTracker.isShowingPlayer = true
             if cachedCoverImage == nil {
-                if let artURL = book.bestCassetteCoverArtURL() {
-                    cachedCoverImage = UIImage(contentsOfFile: artURL.path)
-                }
+                // Decoded at display size (largest use is the 330pt art view)
+                // and blurred once, instead of blurring live on the GPU.
+                let artURL = book.bestCassetteCoverArtURL()
+                cachedCoverImage = ImageCache.image(at: artURL, maxPointSize: 330)
+                cachedBlurredCassette = ImageCache.blurredImage(at: artURL, fillSize: CGSize(width: 310, height: 170), radius: 40)
+                cachedBlurredArt = ImageCache.blurredImage(at: artURL, fillSize: CGSize(width: 330, height: 330), radius: 40)
             }
             loadBook()
         }
@@ -256,6 +263,15 @@ struct PlayerView: View {
 /// this lightweight view instead of the entire PlayerView hierarchy.
 private struct ChapterTickerView: View {
     @EnvironmentObject var playerManager: AudioPlayerManager
+
+    var body: some View {
+        ChapterTickerContent(playerManager: playerManager, clock: playerManager.clock)
+    }
+}
+
+private struct ChapterTickerContent: View {
+    let playerManager: AudioPlayerManager
+    @ObservedObject var clock: PlaybackClock
 
     var body: some View {
         let text = chapterText

@@ -33,8 +33,15 @@ class LibraryManager: ObservableObject {
     private let groupsKey  = "casset_groups"
     private let sortKey    = "casset_sort_preference"
 
+    /// What Siri's App Shortcut parameters are built from; used to skip
+    /// re-registering shortcuts when only progress or bookmarks changed.
+    private var shortcutSignature: String?
+
     init() {
         load()
+        // CassetApp registers shortcuts at launch; no need to repeat it on the first save.
+        shortcutSignature = currentShortcutSignature
+        applyPendingPlaybackPosition()
         loadGroups()
         loadSortPreference()
         cleanupOrphanedBookIDs()
@@ -298,8 +305,11 @@ class LibraryManager: ObservableObject {
     /// Resolves the bookmark for a book, refreshing it if stale. Returns the URL or nil.
     func resolveAndRefreshBookmark(bookID: UUID) -> URL? {
         guard let i = books.firstIndex(where: { $0.id == bookID }) else { return nil }
+        let before = books[i].bookmarkData
         guard let url = books[i].resolveAndRefreshBookmark() else { return nil }
-        save()  // persist refreshed bookmark data if it changed
+        if books[i].bookmarkData != before {
+            save()  // persist refreshed bookmark data if it changed
+        }
         return url
     }
 
@@ -325,6 +335,22 @@ class LibraryManager: ObservableObject {
         books[i].lastPosition = position
         books[i].lastInteracted = Date()  // Update interaction timestamp
         save()
+        // The library now holds this book's latest position.
+        if PlaybackPositionStore.pending()?.bookID == bookID {
+            PlaybackPositionStore.clear()
+        }
+    }
+
+    /// Applies a position stashed during playback that never got committed
+    /// (e.g. the app was killed while playing in the background).
+    private func applyPendingPlaybackPosition() {
+        guard let entry = PlaybackPositionStore.pending() else { return }
+        if let i = books.firstIndex(where: { $0.id == entry.bookID }) {
+            books[i].lastPosition = entry.position
+            books[i].lastInteracted = max(books[i].lastInteracted, entry.date)
+            save()
+        }
+        PlaybackPositionStore.clear()
     }
 
     func updateDuration(bookID: UUID, duration: Double) {
@@ -519,8 +545,18 @@ class LibraryManager: ObservableObject {
         if let data = try? JSONEncoder().encode(books) {
             UserDefaults.standard.set(data, forKey: storageKey)
         }
-        // Keep Siri's book list in sync when library changes
-        AudiobookShortcuts.updateAppShortcutParameters()
+        // Keep Siri's book list in sync when the list of books changes.
+        // Re-registering is expensive for the system, so skip it when only
+        // progress, bookmarks or artwork changed.
+        let signature = currentShortcutSignature
+        if signature != shortcutSignature {
+            shortcutSignature = signature
+            AudiobookShortcuts.updateAppShortcutParameters()
+        }
+    }
+
+    private var currentShortcutSignature: String {
+        books.map { "\($0.id)\u{1F}\($0.title)\u{1F}\($0.author)" }.joined(separator: "\u{1E}")
     }
 
     private func load() {

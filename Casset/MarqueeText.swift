@@ -15,6 +15,9 @@ final class MarqueeUIView: UIView {
     private let gap: CGFloat = 60
     private var scrollSpeed: CGFloat = 35
     private var needsScroll = false
+    private var currentAttributedText: NSAttributedString?
+    /// The text width / container width the running animation was built for.
+    private var animatedLayout: (textWidth: CGFloat, containerWidth: CGFloat, speed: CGFloat)?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -51,14 +54,22 @@ final class MarqueeUIView: UIView {
     }
 
     func configure(text: String, uiFont: UIFont, textColor: UIColor, speed: CGFloat, tracking: CGFloat) {
-        scrollSpeed = speed
-
         let attrs: [NSAttributedString.Key: Any] = [
             .font: uiFont,
             .foregroundColor: textColor,
             .kern: tracking
         ]
         let attrStr = NSAttributedString(string: text.uppercased(), attributes: attrs)
+
+        // SwiftUI calls this on every update of the parent view. Re-laying out
+        // (and restarting the scroll) when nothing changed wastes energy and
+        // makes the text jump back to the start.
+        if speed == scrollSpeed, let current = currentAttributedText, current.isEqual(to: attrStr) {
+            return
+        }
+        currentAttributedText = attrStr
+        scrollSpeed = speed
+        animatedLayout = nil
 
         primaryLabel.attributedText = attrStr
         secondaryLabel.attributedText = attrStr
@@ -73,6 +84,16 @@ final class MarqueeUIView: UIView {
 
         let textW = primaryLabel.bounds.width
         let containerW = bounds.width
+
+        // Layout passes happen for many reasons; leave a running scroll alone
+        // unless its geometry actually changed.
+        if let laid = animatedLayout,
+           laid.textWidth == textW, laid.containerWidth == containerW, laid.speed == scrollSpeed,
+           !needsScroll || scrollView.layer.animation(forKey: "marquee") != nil {
+            fadeLayer.frame = bounds
+            return
+        }
+        animatedLayout = (textW, containerW, scrollSpeed)
 
         fadeLayer.frame = bounds
 

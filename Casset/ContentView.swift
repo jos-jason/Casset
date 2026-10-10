@@ -159,7 +159,7 @@ struct ContentView: View {
                     HStack(spacing: 14) {
                         Group {
                             if let artURL = book.bestCoverArtURL(),
-                               let uiImage = UIImage(contentsOfFile: artURL.path) {
+                               let uiImage = ImageCache.image(at: artURL, maxPointSize: 112) {
                                 Image(uiImage: uiImage)
                                     .resizable()
                                     .scaledToFill()
@@ -226,7 +226,7 @@ struct ContentView: View {
 
     private var cassetteLibraryList: some View {
         ScrollView {
-            VStack(spacing: 10) {
+            LazyVStack(spacing: 10) {
                 ForEach(filteredBooks) { book in
                     NavigationLink(
                         destination: PlayerView(book: book)
