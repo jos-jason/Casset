@@ -1,8 +1,107 @@
-//
-//  Book.swift
-//  Casset
-//
-//  Created by JJ vollum on 3/8/26.
-//
-
 import Foundation
+
+struct Book: Identifiable, Codable {
+    var id: UUID = UUID()
+    var title: String
+    var subtitle: String = ""
+    var author: String = ""
+    var series: String = ""
+    var bookNumber: String = ""
+    var bookmarkData: Data
+    var duration: Double = 0
+    var lastPosition: Double = 0
+    var dateAdded: Date = Date()
+    var lastInteracted: Date = Date()  // Tracks most recent interaction (added or played)
+    var genre: String = ""
+    var artworkFilename: String? = nil
+    var customColorHex: String? = nil
+    var customTextColorHex: String? = nil
+    var cassetteBoxArtFilename: String? = nil
+    var boxArtPrompt: String = ""
+    var customCoverArtFilename: String? = nil       // Square (1:1) cover art
+    var customCassetteCoverArtFilename: String? = nil // Cassette ratio (31:17) cover art
+
+    // Per‑book bookmarks (backward‑compatible default)
+    var bookmarks: [Bookmark] = []
+
+    func resolvedURL() -> URL? {
+        var isStale = false
+        guard let url = try? URL(
+            resolvingBookmarkData: bookmarkData,
+            options: .withoutUI,
+            relativeTo: nil,
+            bookmarkDataIsStale: &isStale
+        ) else { return nil }
+
+        // If the bookmark is stale, the URL may still work but we should
+        // note it for diagnostics. The caller (LibraryManager) can refresh
+        // the bookmark data when it detects staleness.
+        if isStale {
+            print("⚠️ Bookmark is stale for: \(url.lastPathComponent)")
+        }
+        return url
+    }
+
+    /// Attempts to resolve the bookmark and refresh it if stale.
+    /// Returns the resolved URL and updated bookmark data (if refreshed), or nil on failure.
+    mutating func resolveAndRefreshBookmark() -> URL? {
+        var isStale = false
+        guard let url = try? URL(
+            resolvingBookmarkData: bookmarkData,
+            options: .withoutUI,
+            relativeTo: nil,
+            bookmarkDataIsStale: &isStale
+        ) else { return nil }
+
+        if isStale {
+            // Re-create the bookmark from the resolved URL
+            if let newData = try? url.bookmarkData(
+                options: [],
+                includingResourceValuesForKeys: nil,
+                relativeTo: nil
+            ) {
+                bookmarkData = newData
+                print("🔄 Refreshed stale bookmark for: \(url.lastPathComponent)")
+            }
+        }
+        return url
+    }
+
+    func artworkURL() -> URL? {
+        guard let filename = artworkFilename else { return nil }
+        return FileManager.default
+            .urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(filename)
+    }
+
+    func cassetteBoxArtURL() -> URL? {
+        guard let filename = cassetteBoxArtFilename else { return nil }
+        return FileManager.default
+            .urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(filename)
+    }
+
+    func customCoverArtURL() -> URL? {
+        guard let filename = customCoverArtFilename else { return nil }
+        return FileManager.default
+            .urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(filename)
+    }
+
+    func customCassetteCoverArtURL() -> URL? {
+        guard let filename = customCassetteCoverArtFilename else { return nil }
+        return FileManager.default
+            .urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(filename)
+    }
+
+    /// Returns the best available cover image URL: custom square cover, then embedded artwork
+    func bestCoverArtURL() -> URL? {
+        customCoverArtURL() ?? artworkURL()
+    }
+
+    /// Returns the best available cassette cover URL: custom cassette cover, then square cover, then embedded
+    func bestCassetteCoverArtURL() -> URL? {
+        customCassetteCoverArtURL() ?? customCoverArtURL() ?? artworkURL()
+    }
+}
